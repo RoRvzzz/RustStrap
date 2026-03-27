@@ -16,7 +16,7 @@
 *Ruststrap is a custom bootstrapper for Roblox based on Fishstrap/Bloxstrap.*
 *It aims to provide additional features while keeping launcher behavior familiar.*
 
-***Found a bug? [Open an issue](https://github.com/RoRvzzz/RustStrap/issues/new/choose) or report it in our [Discord server](https://discord.gg/KdR9vpRcUN).***
+***Found a bug? [Open an issue](https://github.com/RoRvzzz/RustStrap/issues/new/choose) or report it in our [Discord server](https://discord.gg/macorstack).***
 
 > [!NOTE]
 > Ruststrap currently supports **Windows 10 and above**.
