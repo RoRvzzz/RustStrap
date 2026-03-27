@@ -1,0 +1,18 @@
+#ignore all build files and any files not human generated
+target/
+dist/
+build/
+*.log
+*.tmp
+*.bak
+*.cache
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.app
+package-lock.json
+yarn.lock
+cargo.lock
+node_modules/
