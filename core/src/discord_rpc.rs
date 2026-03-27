@@ -12,11 +12,11 @@ use crate::roblox_api::{
     ThumbnailBatchResponse, ThumbnailCacheEntry,
 };
 
-pub const DISCORD_APP_ID: &str = "000000000000000000";
-const RUSTSTRAP_HOME_LARGE_IMAGE_KEY: &str = "ruststrap_home_large_placeholder";
-const RUSTSTRAP_HOME_SMALL_IMAGE_KEY: &str = "ruststrap_home_small_placeholder";
-const RUSTSTRAP_GAME_FALLBACK_IMAGE_KEY: &str = "ruststrap_game_fallback_placeholder";
-const RUSTSTRAP_USER_FALLBACK_IMAGE_KEY: &str = "ruststrap_user_fallback_placeholder";
+pub const DISCORD_APP_ID: &str = "1486934007370354848";
+const RUSTSTRAP_HOME_LARGE_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
+const RUSTSTRAP_HOME_SMALL_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
+const RUSTSTRAP_GAME_FALLBACK_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
+const RUSTSTRAP_USER_FALLBACK_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct RpcDisplaySettings {
