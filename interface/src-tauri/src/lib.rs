@@ -8,8 +8,11 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use Ruststrap_core::{
     decode_watcher_data, do_install, do_uninstall, do_uninstall_for_reinstall, encode_watcher_data,
     execute_bootstrap, installed_app_path, launch_trayhost_process, launch_watcher_process,
-    region_selector_datacenters, region_selector_join, region_selector_search_games,
-    region_selector_servers, region_selector_status, runtime_readiness, wait_for_recent_player_log,
+    region_selector_datacenters as core_region_selector_datacenters,
+    region_selector_join as core_region_selector_join,
+    region_selector_search_games as core_region_selector_search_games,
+    region_selector_servers as core_region_selector_servers,
+    region_selector_status as core_region_selector_status, runtime_readiness, wait_for_recent_player_log,
     BootstrapRuntime, BootstrapRuntimeConfig, CookieState, CookiesManager, DomainEvent,
     FastFlagManager, FilesystemBootstrapRuntime, LaunchMode, ParsedLaunchSettings, PromptKind,
     RuntimeReadiness, Watcher, WatcherData,
@@ -883,19 +886,20 @@ async fn region_selector_status_cmd(
     host: State<'_, RuntimeHost>,
 ) -> Result<serde_json::Value, String> {
     let settings = host.runtime.load_settings().map_err(|e| e.to_string())?;
-    let status = region_selector_status(settings.allow_cookie_access).map_err(|e| e.to_string())?;
+    let status =
+        core_region_selector_status(settings.allow_cookie_access).map_err(|e| e.to_string())?;
     serde_json::to_value(status).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn region_selector_datacenters_cmd() -> Result<serde_json::Value, String> {
-    let datacenters = region_selector_datacenters().map_err(|e| e.to_string())?;
+    let datacenters = core_region_selector_datacenters().map_err(|e| e.to_string())?;
     serde_json::to_value(datacenters).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 async fn region_selector_search_games_cmd(query: String) -> Result<serde_json::Value, String> {
-    let results = region_selector_search_games(&query).map_err(|e| e.to_string())?;
+    let results = core_region_selector_search_games(&query).map_err(|e| e.to_string())?;
     serde_json::to_value(results).map_err(|e| e.to_string())
 }
 
@@ -925,7 +929,7 @@ async fn region_selector_servers_cmd(
         None
     };
 
-    let servers = region_selector_servers(
+    let servers = core_region_selector_servers(
         place_id,
         cursor.as_deref(),
         sort_order,
@@ -937,7 +941,38 @@ async fn region_selector_servers_cmd(
 
 #[tauri::command]
 async fn region_selector_join_cmd(place_id: i64, job_id: String) -> CommandResult {
-    region_selector_join(place_id, &job_id).map_err(|e| e.to_string())
+    core_region_selector_join(place_id, &job_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn region_selector_status(host: State<'_, RuntimeHost>) -> Result<serde_json::Value, String> {
+    region_selector_status_cmd(host).await
+}
+
+#[tauri::command]
+async fn region_selector_datacenters() -> Result<serde_json::Value, String> {
+    region_selector_datacenters_cmd().await
+}
+
+#[tauri::command]
+async fn region_selector_search_games(query: String) -> Result<serde_json::Value, String> {
+    region_selector_search_games_cmd(query).await
+}
+
+#[tauri::command]
+async fn region_selector_servers(
+    host: State<'_, RuntimeHost>,
+    place_id: i64,
+    cursor: Option<String>,
+    sort_order: Option<i32>,
+    selected_region: Option<String>,
+) -> Result<serde_json::Value, String> {
+    region_selector_servers_cmd(host, place_id, cursor, sort_order, selected_region).await
+}
+
+#[tauri::command]
+async fn region_selector_join(place_id: i64, job_id: String) -> CommandResult {
+    region_selector_join_cmd(place_id, job_id).await
 }
 
 #[tauri::command]
@@ -1113,6 +1148,11 @@ pub fn run() {
             region_selector_search_games_cmd,
             region_selector_servers_cmd,
             region_selector_join_cmd,
+            region_selector_status,
+            region_selector_datacenters,
+            region_selector_search_games,
+            region_selector_servers,
+            region_selector_join,
             win_close,
             win_minimize,
             win_maximize,

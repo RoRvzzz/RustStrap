@@ -183,6 +183,14 @@ function mapBootstrapDetail(detail: string): { label: string; current: number; t
   return null;
 }
 
+function normalizeFastFlags(flags: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(flags)) {
+    out[key] = typeof value === "string" ? value : String(value ?? "");
+  }
+  return out;
+}
+
 export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [, setRuntimeStatus] = useState<RuntimeStatus | null>(null);
@@ -261,7 +269,7 @@ export function App() {
       const s = await commands.getSettings();
       setSettings(s as Settings);
       const f = await commands.getFastFlags();
-      setFastFlags(f || {});
+      setFastFlags(normalizeFastFlags(f || {}));
       const runtime = await commands.ensureRuntimeReady();
       setRuntimeStatus(runtime);
       if (runtime?.relaunched) {
@@ -342,9 +350,18 @@ export function App() {
       await commands.launchPlayer();
       await commands.winClose();
     } catch (e: unknown) {
-      setView("installer");
-      setBootstrapStatus(`Launch error: ${e}`);
-      setStatus("error");
+      setIsBootstrapping(false);
+      try {
+        const runtime = await commands.getRuntimeStatus();
+        setRuntimeStatus(runtime);
+        if (runtime?.install_required) {
+          setView("installer");
+          setStatus("Runtime setup is required");
+          return;
+        }
+      } catch (_) { /* ignore */ }
+      setView("settings");
+      setStatus(`Launch error: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -366,8 +383,17 @@ export function App() {
       }
       await commands.launchStudio();
     } catch (e: unknown) {
-      setView("installer");
-      setStatus(`Studio launch error: ${e}`);
+      try {
+        const runtime = await commands.getRuntimeStatus();
+        setRuntimeStatus(runtime);
+        if (runtime?.install_required) {
+          setView("installer");
+          setStatus("Runtime setup is required");
+          return;
+        }
+      } catch (_) { /* ignore */ }
+      setView("settings");
+      setStatus(`Studio launch error: ${String(e)}`);
     } finally {
       setBusy(false);
     }

@@ -66,16 +66,18 @@ export const commands = {
   },
 
   async saveSettings(settings: Settings): Promise<void> {
-    return invoke("save_settings", { settings });
+    // save_settings expects a json string payload named settingsJson.
+    return invoke("save_settings", { settingsJson: JSON.stringify(settings) });
   },
 
   // Fast Flags
-  async getFastFlags(): Promise<Record<string, string>> {
-    return invoke<Record<string, string>>("get_fast_flags");
+  async getFastFlags(): Promise<Record<string, unknown>> {
+    return invoke<Record<string, unknown>>("get_fast_flags");
   },
 
-  async saveFastFlags(flags: Record<string, string>): Promise<void> {
-    return invoke("save_fast_flags", { flags });
+  async saveFastFlags(flags: Record<string, unknown>): Promise<void> {
+    // save_fast_flags expects a json string payload named flagsJson.
+    return invoke("save_fast_flags", { flagsJson: JSON.stringify(flags) });
   },
 
   // Runtime
@@ -89,7 +91,11 @@ export const commands = {
 
   // Installation
   async doFullInstall(desktop: boolean, startMenu: boolean, importOld: boolean): Promise<InstallResult> {
-    return invoke<InstallResult>("do_full_install", { desktop, startMenu, importOld });
+    return invoke<InstallResult>("do_full_install", {
+      createDesktopShortcut: desktop,
+      createStartMenuShortcut: startMenu,
+      importFromRuststrap: importOld,
+    });
   },
 
   // Launching
@@ -145,13 +151,13 @@ export const commands = {
     placeId: number,
     cursor?: string,
     sortOrder?: number,
-    region?: string
+    selectedRegion?: string
   ): Promise<RegionServerPage> {
     return invoke<RegionServerPage>("region_selector_servers", {
       placeId,
       cursor,
       sortOrder,
-      region,
+      selectedRegion,
     });
   },
 
