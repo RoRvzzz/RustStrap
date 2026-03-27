@@ -62,4 +62,4 @@ npm run tauri build
 [repo-license]:  https://github.com/RoRvzzz/RustStrap/blob/main/LICENSE
 [repo-releases]: https://github.com/RoRvzzz/RustStrap/releases
 [repo-latest]:   https://github.com/RoRvzzz/RustStrap/releases/latest
-[discord-invite]: https://discord.gg/KdR9vpRcUN
+[discord-invite]: https://discord.gg/macrostack
