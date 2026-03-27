@@ -13,8 +13,7 @@
 > The only official place to download Ruststrap is this GitHub repository.
 > Do not download binaries from mirrors, reupload sites, or unofficial domains.
 
-*Ruststrap is a custom bootstrapper for Roblox based on Fishstrap/Bloxstrap.*
-*It aims to provide additional features while keeping launcher behavior familiar.*
+*Ruststrap is a bootstrapper based on, Froststrap, Fishstrap and Bloxstrap but its built in rust. Hence why it is not a fork*
 
 ***Found a bug? [Open an issue](https://github.com/RoRvzzz/RustStrap/issues/new/choose) or report it in our [Discord server](https://discord.gg/macorstack).***
 
@@ -25,7 +24,10 @@
 **Download the latest release [here][repo-latest]**
 
 ## feature list
-- detailed server information **(thanks to [RoValra](https://www.rovalra.com/))**
+- detailed server information
+- server browser
+- tray history
+- server info
 - discord rich presence with join/game-page buttons
 - roblox studio support
 - fast flag editor
@@ -34,7 +36,7 @@
 - channel changer
 - detached watcher + tray host flow
 
-> and more.
+> and much more.
 
 ## build from source
 
