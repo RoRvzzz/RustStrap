@@ -49,12 +49,6 @@ pub fn launch_watcher_process(exe_path: &Path, watcher_data: &str) -> Result<()>
     Ok(())
 }
 
-/* 
-
-lets hope this works, currently I don't believe this is windows. Just my bad coding
-
-*/
-
 pub fn launch_trayhost_process(exe_path: &Path, watcher_data: &str) -> Result<()> {
     let resolved_exe = std::fs::canonicalize(exe_path).unwrap_or_else(|_| exe_path.to_path_buf());
 
@@ -78,15 +72,13 @@ pub fn launch_trayhost_process(exe_path: &Path, watcher_data: &str) -> Result<()
             crate::errors::DomainError::Process(format!("trayhost failed!: {e}"))
         })?;
 
-    if std::env::var_os("RUSTSTRAP_DEBUG_TRAYHOST").is_some() {
-        std::thread::sleep(std::time::Duration::from_millis(300));
-        if let Some(status) = child.try_wait().map_err(|e| {
-            crate::errors::DomainError::Process(format!("trayhost failed!: {e}"))
-        })? {
-            return Err(crate::errors::DomainError::Process(format!(
-                "trayhost exited early with status: {status}"
-            )));
-        }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    if let Some(status) = child.try_wait().map_err(|e| {
+        crate::errors::DomainError::Process(format!("trayhost failed!: {e}"))
+    })? {
+        return Err(crate::errors::DomainError::Process(format!(
+            "trayhost exited early with status: {status}"
+        )));
     }
 
     Ok(())

@@ -1,6 +1,9 @@
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
+use std::collections::HashSet;
+#[cfg(windows)]
+use std::fmt::Write;
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -102,6 +105,7 @@ impl Watcher {
 
         let mut disconnect_reason: Option<u32> = None;
         let mut active_activity: Option<ActivityData> = None;
+        let mut notified_jobs = HashSet::<String>::new();
 
         loop {
             thread::sleep(Duration::from_secs(1));
@@ -125,23 +129,27 @@ impl Watcher {
                             state.data.clone()
                         };
                         active_activity = Some(data.clone());
+                        let should_notify = should_notify_job_join(&mut notified_jobs, &data.job_id);
 
-                        if let Some(rpc_client) = rpc.clone() {
+                        if rpc.is_some() || should_notify {
                             let rpc_settings = rpc_settings.clone();
+                            let rpc_client = rpc.clone();
                             thread::spawn(move || {
                                 if data.universe_id == 0 {
+                                    if should_notify {
+                                        notify_server_join("Roblox", "", None);
+                                    }
                                     return;
                                 }
 
-                                if let Ok(Some(details)) = fetch_universe_details(data.universe_id)
-                                {
+                                if let Ok(Some(details)) = fetch_universe_details(data.universe_id) {
                                     let icon_url = fetch_thumbnail_url(
                                         data.universe_id as u64,
                                         "UniverseThumbnail",
                                         "512x512",
                                     )
                                     .unwrap_or_default()
-                                    .unwrap_or_else(|| "roblox".to_string());
+                                    .unwrap_or_default();
 
                                     let user_display = if rpc_settings.show_account_on_rich_presence
                                     {
@@ -150,7 +158,8 @@ impl Watcher {
                                         None
                                     };
 
-                                    let server_location = if rpc_settings.show_server_details
+                                    let server_location = if (rpc_settings.show_server_details
+                                        || should_notify)
                                         && data.machine_address_valid()
                                     {
                                         query_server_location(&data.machine_address).ok().flatten()
@@ -164,17 +173,29 @@ impl Watcher {
                                         None
                                     };
 
-                                    rpc_client.set_current_game(
-                                        &data,
-                                        &details.name,
-                                        &details.creator.name,
-                                        details.creator.has_verified_badge,
-                                        &icon_url,
-                                        &rpc_settings,
-                                        user_display.as_ref(),
-                                        server_location.as_deref(),
-                                        server_uptime.as_deref(),
-                                    );
+                                    if let Some(rpc_client) = rpc_client.as_ref() {
+                                        rpc_client.set_current_game(
+                                            &data,
+                                            &details.name,
+                                            &details.creator.name,
+                                            details.creator.has_verified_badge,
+                                            &icon_url,
+                                            &rpc_settings,
+                                            user_display.as_ref(),
+                                            server_location.as_deref(),
+                                            server_uptime.as_deref(),
+                                        );
+                                    }
+
+                                    if should_notify {
+                                        notify_server_join(
+                                            &details.name,
+                                            &details.creator.name,
+                                            server_location.as_deref(),
+                                        );
+                                    }
+                                } else if should_notify {
+                                    notify_server_join("Roblox", "", None);
                                 }
                             });
                         }
@@ -195,7 +216,7 @@ impl Watcher {
                                             "512x512",
                                         )
                                         .unwrap_or_default()
-                                        .unwrap_or_else(|| "roblox".to_string());
+                                        .unwrap_or_default();
 
                                         let user_display =
                                             if rpc_settings.show_account_on_rich_presence {
@@ -369,6 +390,88 @@ fn should_auto_rejoin(reason: u32) -> bool {
     matches!(reason, 1 | 277)
 }
 
+fn should_notify_job_join(notified_jobs: &mut HashSet<String>, job_id: &str) -> bool {
+    let trimmed = job_id.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    notified_jobs.insert(trimmed.to_string())
+}
+
+#[cfg(windows)]
+fn notify_server_join(game_name: &str, creator_name: &str, region: Option<&str>) {
+    use windows::core::HSTRING;
+    use windows::Data::Xml::Dom::XmlDocument;
+    use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
+    use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+    }
+
+    let trimmed_game = game_name.trim();
+    let title = if trimmed_game.is_empty() {
+        "joined a roblox server".to_string()
+    } else {
+        format!("joined {trimmed_game}")
+    };
+
+    let mut body = String::new();
+    let trimmed_creator = creator_name.trim();
+    if !trimmed_creator.is_empty() {
+        let _ = write!(body, "by {trimmed_creator}");
+    }
+
+    if let Some(value) = region.map(str::trim).filter(|value| !value.is_empty()) {
+        if !body.is_empty() {
+            body.push_str(" • ");
+        }
+        body.push_str(value);
+    }
+
+    if body.is_empty() {
+        body.push_str("server connection established");
+    }
+
+    let xml = format!(
+        "<toast><visual><binding template=\"ToastGeneric\"><text>{}</text><text>{}</text></binding></visual></toast>",
+        escape_toast_xml(&title),
+        escape_toast_xml(&body)
+    );
+
+    let Ok(doc) = XmlDocument::new() else {
+        return;
+    };
+    if doc.LoadXml(&HSTRING::from(xml)).is_err() {
+        return;
+    }
+
+    let Ok(toast) = ToastNotification::CreateToastNotification(&doc) else {
+        return;
+    };
+
+    let notifier =
+        ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from("app.Ruststrap.bootstrapper"))
+            .or_else(|_| ToastNotificationManager::CreateToastNotifier());
+
+    if let Ok(notifier) = notifier {
+        let _ = notifier.Show(&toast);
+    }
+}
+
+#[cfg(not(windows))]
+fn notify_server_join(_game_name: &str, _creator_name: &str, _region: Option<&str>) {}
+
+#[cfg(windows)]
+fn escape_toast_xml(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
 fn format_server_uptime(start_time_tag: &str) -> Option<String> {
     let started_at = NaiveDateTime::parse_from_str(start_time_tag, "%Y%m%dT%H%M%SZ").ok()?;
     let started_at = DateTime::<Utc>::from_naive_utc_and_offset(started_at, Utc);
@@ -503,5 +606,13 @@ mod tests {
     fn uptime_formatter_works() {
         let text = format_server_uptime("20260101T000000Z");
         assert!(text.is_some());
+    }
+
+    #[test]
+    fn job_notification_dedupes_on_job_id() {
+        let mut notified = HashSet::new();
+        assert!(should_notify_job_join(&mut notified, "abc-job"));
+        assert!(!should_notify_job_join(&mut notified, "abc-job"));
+        assert!(should_notify_job_join(&mut notified, "def-job"));
     }
 }

@@ -21,4 +21,4 @@ chrono = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
-windows = { version = "0.58", features = ["Win32_Security_Cryptography", "Win32_System_Memory", "Win32_Foundation"] }
+windows = { version = "0.58", features = ["Data_Xml_Dom", "UI_Notifications", "Win32_Security_Cryptography", "Win32_System_Memory", "Win32_Foundation", "Win32_System_Com"] }

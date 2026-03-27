@@ -13,10 +13,14 @@ use crate::roblox_api::{
 };
 
 pub const DISCORD_APP_ID: &str = "1486934007370354848";
-const RUSTSTRAP_HOME_LARGE_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
-const RUSTSTRAP_HOME_SMALL_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
-const RUSTSTRAP_GAME_FALLBACK_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
-const RUSTSTRAP_USER_FALLBACK_IMAGE_KEY: &str = "https://github.com/RoRvzzz/RustStrap/blob/7b37665414688c597a100c43e8f23d19a9bcbf00/interface/public/icon.png";
+const RUSTSTRAP_IMAGE_SOURCE: &str =
+    "https://raw.githubusercontent.com/RoRvzzz/RustStrap/main/interface/public/icon.png";
+const RUSTSTRAP_HOME_LARGE_IMAGE_KEY: &str = RUSTSTRAP_IMAGE_SOURCE;
+const RUSTSTRAP_HOME_SMALL_IMAGE_KEY: &str = RUSTSTRAP_IMAGE_SOURCE;
+const RUSTSTRAP_GAME_FALLBACK_IMAGE_KEY: &str = RUSTSTRAP_IMAGE_SOURCE;
+const RUSTSTRAP_USER_FALLBACK_IMAGE_KEY: &str = RUSTSTRAP_IMAGE_SOURCE;
+const THUMBNAIL_RETRY_ATTEMPTS: usize = 3;
+const THUMBNAIL_RETRY_DELAY_MS: u64 = 350;
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct RpcDisplaySettings {
@@ -313,9 +317,15 @@ impl DiscordRichPresence {
         let presence = PresenceData {
             details,
             state,
-            large_image_key: RUSTSTRAP_HOME_LARGE_IMAGE_KEY.to_string(),
+            large_image_key: normalize_discord_image_key(
+                RUSTSTRAP_HOME_LARGE_IMAGE_KEY,
+                RUSTSTRAP_GAME_FALLBACK_IMAGE_KEY,
+            ),
             large_image_text: "Ruststrap home".to_string(),
-            small_image_key: RUSTSTRAP_HOME_SMALL_IMAGE_KEY.to_string(),
+            small_image_key: normalize_discord_image_key(
+                RUSTSTRAP_HOME_SMALL_IMAGE_KEY,
+                RUSTSTRAP_USER_FALLBACK_IMAGE_KEY,
+            ),
             small_image_text: "Ruststrap".to_string(),
             timestamp_start: None,
             timestamp_end: None,
@@ -454,16 +464,25 @@ fn trim_presence_field(value: &str) -> String {
 }
 
 fn normalize_discord_image_key(value: &str, fallback: &str) -> String {
+    let resolved = normalize_discord_image_key_inner(value);
+    if resolved.is_empty() {
+        return normalize_discord_image_key_inner(fallback);
+    }
+    resolved
+}
+
+fn normalize_discord_image_key_inner(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return fallback.to_string();
+        return String::new();
     }
 
-    if trimmed.starts_with("http://")
-        || trimmed.starts_with("https://")
-        || trimmed.starts_with("mp:")
-    {
+    if trimmed.starts_with("mp:") {
         return trimmed.to_string();
+    }
+
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return format!("mp:{trimmed}");
     }
 
     if trimmed
@@ -473,7 +492,7 @@ fn normalize_discord_image_key(value: &str, fallback: &str) -> String {
         return trimmed.to_string();
     }
 
-    fallback.to_string()
+    String::new()
 }
 
 fn unix_now() -> i64 {
@@ -532,8 +551,6 @@ pub fn fetch_user_details(user_id: i64) -> Result<Option<GetUserResponse>> {
 }
 
 pub fn fetch_user_headshot_url(user_id: u64) -> Result<Option<String>> {
-    let url = "https://thumbnails.roblox.com/v1/batch";
-
     let requests = vec![serde_json::json!({
         "requestId": format!("0:{user_id}:AvatarHeadShot:150x150:png:regular"),
         "targetId": user_id,
@@ -542,31 +559,10 @@ pub fn fetch_user_headshot_url(user_id: u64) -> Result<Option<String>> {
         "isCircular": true
     })];
 
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .user_agent("Ruststrap/0.1")
-        .build()
-        .map_err(|e| DomainError::Network(format!("headshot client build failed: {e}")))?;
-
-    let response = client
-        .post(url)
-        .json(&requests)
-        .send()
-        .map_err(|e| DomainError::Network(format!("headshot request failed: {e}")))?;
-
-    let body = response
-        .text()
-        .map_err(|e| DomainError::Network(format!("headshot response read failed: {e}")))?;
-
-    let batch: ThumbnailBatchResponse = serde_json::from_str(&body)
-        .map_err(|e| DomainError::Serialization(format!("headshot parse failed: {e}")))?;
-
-    Ok(batch.data.first().and_then(|item| item.image_url.clone()))
+    fetch_thumbnail_batch_url(&requests, "headshot")
 }
 
 pub fn fetch_thumbnail_url(target_id: u64, kind: &str, size: &str) -> Result<Option<String>> {
-    let url = "https://thumbnails.roblox.com/v1/batch";
-
     let requests = vec![serde_json::json!({
         "requestId": format!("0:{target_id}:Asset:512x512:png:regular"),
         "targetId": target_id,
@@ -575,26 +571,81 @@ pub fn fetch_thumbnail_url(target_id: u64, kind: &str, size: &str) -> Result<Opt
         "isCircular": false
     })];
 
+    fetch_thumbnail_batch_url(&requests, "thumbnail")
+}
+
+fn fetch_thumbnail_batch_url(
+    requests: &[serde_json::Value],
+    request_kind: &str,
+) -> Result<Option<String>> {
+    let url = "https://thumbnails.roblox.com/v1/batch";
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .user_agent("Ruststrap/0.1")
         .build()
-        .map_err(|e| DomainError::Network(format!("thumbnail client build failed: {e}")))?;
+        .map_err(|e| {
+            DomainError::Network(format!("{request_kind} thumbnail client build failed: {e}"))
+        })?;
 
-    let response = client
-        .post(url)
-        .json(&requests)
-        .send()
-        .map_err(|e| DomainError::Network(format!("thumbnail request failed: {e}")))?;
+    for attempt in 0..THUMBNAIL_RETRY_ATTEMPTS {
+        let response = client
+            .post(url)
+            .json(requests)
+            .send()
+            .map_err(|e| {
+                DomainError::Network(format!(
+                    "{request_kind} thumbnail request failed (attempt {}): {e}",
+                    attempt + 1
+                ))
+            })?;
 
-    let body = response
-        .text()
-        .map_err(|e| DomainError::Network(format!("thumbnail response read failed: {e}")))?;
+        let body = response.text().map_err(|e| {
+            DomainError::Network(format!(
+                "{request_kind} thumbnail response read failed (attempt {}): {e}",
+                attempt + 1
+            ))
+        })?;
 
-    let batch: ThumbnailBatchResponse = serde_json::from_str(&body)
-        .map_err(|e| DomainError::Serialization(format!("thumbnail parse failed: {e}")))?;
+        let batch: ThumbnailBatchResponse = serde_json::from_str(&body).map_err(|e| {
+            DomainError::Serialization(format!(
+                "{request_kind} thumbnail parse failed (attempt {}): {e}",
+                attempt + 1
+            ))
+        })?;
 
-    Ok(batch.data.first().and_then(|item| item.image_url.clone()))
+        if let Some(url) = select_thumbnail_url(&batch) {
+            return Ok(Some(url));
+        }
+
+        if attempt + 1 < THUMBNAIL_RETRY_ATTEMPTS {
+            thread::sleep(Duration::from_millis(THUMBNAIL_RETRY_DELAY_MS));
+        }
+    }
+
+    Ok(None)
+}
+
+fn select_thumbnail_url(batch: &ThumbnailBatchResponse) -> Option<String> {
+    let mut fallback = None;
+
+    for item in &batch.data {
+        let Some(url) = item
+            .image_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        else {
+            continue;
+        };
+        if item.state.eq_ignore_ascii_case("completed") {
+            return Some(url.to_string());
+        }
+        if fallback.is_none() {
+            fallback = Some(url.to_string());
+        }
+    }
+
+    fallback
 }
 
 pub fn fetch_universe_details(universe_id: i64) -> Result<Option<GameDetailData>> {
@@ -650,6 +701,7 @@ pub fn query_server_location(ip: &str) -> Result<Option<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::roblox_api::ThumbnailResponse;
 
     #[test]
     fn discord_app_id() {
@@ -705,5 +757,37 @@ mod tests {
         assert_eq!(presence.details, "Ruststrap");
         assert!(presence.timestamp_start.is_none());
         assert!(presence.buttons.is_empty());
+        assert!(presence.large_image_key.starts_with("mp:https://"));
+        assert!(presence.small_image_key.starts_with("mp:https://"));
+    }
+
+    #[test]
+    fn normalize_http_image_to_mp() {
+        let image = normalize_discord_image_key(
+            "https://example.com/image.png",
+            RUSTSTRAP_GAME_FALLBACK_IMAGE_KEY,
+        );
+        assert_eq!(image, "mp:https://example.com/image.png");
+    }
+
+    #[test]
+    fn thumbnail_selection_prefers_completed() {
+        let response = ThumbnailBatchResponse {
+            data: vec![
+                ThumbnailResponse {
+                    target_id: 1,
+                    state: "Pending".to_string(),
+                    image_url: Some("https://example.com/pending.png".to_string()),
+                },
+                ThumbnailResponse {
+                    target_id: 1,
+                    state: "Completed".to_string(),
+                    image_url: Some("https://example.com/completed.png".to_string()),
+                },
+            ],
+        };
+
+        let selected = select_thumbnail_url(&response).unwrap();
+        assert_eq!(selected, "https://example.com/completed.png");
     }
 }

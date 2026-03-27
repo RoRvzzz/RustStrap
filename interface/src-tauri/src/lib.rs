@@ -286,9 +286,7 @@ fn start_detached_watcher(
     launch_watcher_process(&current_exe, &encoded).map_err(|e| e.to_string())?;
     if launch_mode.eq_ignore_ascii_case("player") {
         if let Err(error) = launch_trayhost_process(&current_exe, &encoded) {
-            if std::env::var_os("RUSTSTRAP_DEBUG_TRAYHOST").is_some() {
-                return Err(format!("trayhost launch failed: {error}"));
-            }
+            eprintln!("trayhost launch failed: {error}");
         }
     }
     runtime
@@ -309,8 +307,8 @@ fn run_watcher_foreground(
 }
 
 fn resolve_tray_icon_path() -> Result<PathBuf, String> {
-    const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
-    let icon_path = std::env::temp_dir().join("ruststrap_tray_icon.png");
+    const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.ico");
+    let icon_path = std::env::temp_dir().join("ruststrap_tray_icon.ico");
 
     let should_write = fs::metadata(&icon_path)
         .map(|meta| meta.len() != TRAY_ICON_BYTES.len() as u64)
@@ -331,22 +329,64 @@ fn run_trayhost_foreground(encoded: &str) -> Result<(), String> {
     }
 
     #[cfg(windows)]
-    let tray_icon = {
+    let (tray_icon, open_settings_item, exit_tray_item) = {
         let icon_path = resolve_tray_icon_path()?;
         let icon = tray_icon::Icon::from_path(&icon_path, Some((32, 32)))
+            .or_else(|_| tray_icon::Icon::from_path(&icon_path, Some((16, 16))))
             .or_else(|_| tray_icon::Icon::from_path(&icon_path, None))
             .map_err(|e| format!("failed to load tray icon: {e}"))?;
+
+        let menu = tray_icon::menu::Menu::new();
+        let open_settings_item = tray_icon::menu::MenuItem::new("open ruststrap", true, None);
+        let exit_tray_item = tray_icon::menu::MenuItem::new("exit tray icon", true, None);
+        menu.append_items(&[&open_settings_item, &exit_tray_item])
+            .map_err(|e| format!("failed to build tray menu: {e}"))?;
 
         tray_icon::TrayIconBuilder::new()
             .with_tooltip("Ruststrap")
             .with_icon(icon)
+            .with_menu(Box::new(menu))
+            .with_menu_on_left_click(false)
             .build()
+            .map(|tray_icon| (tray_icon, open_settings_item, exit_tray_item))
             .map_err(|e| format!("failed to build tray icon: {e}"))?
     };
 
     loop {
         #[cfg(windows)]
         pump_windows_messages();
+
+        #[cfg(windows)]
+        while let Ok(event) = tray_icon::menu::MenuEvent::receiver().try_recv() {
+            let event_id = event.id;
+            if event_id == open_settings_item.id().clone() {
+                launch_menu_window();
+                continue;
+            }
+            if event_id == exit_tray_item.id().clone() {
+                drop(tray_icon);
+                return Ok(());
+            }
+        }
+
+        #[cfg(windows)]
+        while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
+            if event.id() != tray_icon.id() {
+                continue;
+            }
+            match event {
+                tray_icon::TrayIconEvent::Click {
+                    button: tray_icon::MouseButton::Left,
+                    button_state: tray_icon::MouseButtonState::Up,
+                    ..
+                } => launch_menu_window(),
+                tray_icon::TrayIconEvent::DoubleClick {
+                    button: tray_icon::MouseButton::Left,
+                    ..
+                } => launch_menu_window(),
+                _ => {}
+            }
+        }
 
         std::thread::sleep(Duration::from_millis(200));
         if !is_process_alive(data.process_id) {
@@ -889,6 +929,13 @@ async fn region_selector_status_cmd(
     let status =
         core_region_selector_status(settings.allow_cookie_access).map_err(|e| e.to_string())?;
     serde_json::to_value(status).map_err(|e| e.to_string())
+}
+
+fn launch_menu_window() {
+    let Ok(exe_path) = std::env::current_exe() else {
+        return;
+    };
+    let _ = std::process::Command::new(exe_path).arg("-menu").spawn();
 }
 
 #[tauri::command]
