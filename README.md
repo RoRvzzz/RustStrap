@@ -1,6 +1,6 @@
 <div align="center">
-    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_black.png#gh-light-mode-only" width="820">
-    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_white.png#gh-dark-mode-only" width="820">
+    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_black.png#gh-dark-mode-only" width="820">
+    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_white.png#gh-light-mode-only" width="820">
 
 [![License][badge-repo-license]][repo-license]
 [![Downloads][badge-repo-downloads]][repo-releases]
@@ -62,4 +62,4 @@ npm run tauri build
 [repo-license]:  https://github.com/RoRvzzz/RustStrap/blob/main/LICENSE
 [repo-releases]: https://github.com/RoRvzzz/RustStrap/releases
 [repo-latest]:   https://github.com/RoRvzzz/RustStrap/releases/latest
-[discord-invite]: https://discord.gg/macrostack
+[discord-invite]: https://discord.gg/KdR9vpRcUN

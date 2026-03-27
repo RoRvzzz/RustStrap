@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  core:
+    name: core (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: cargo check (core)
+        run: cargo check -p Ruststrap-core --verbose
+
+      - name: cargo test (core)
+        run: cargo test -p Ruststrap-core --verbose
+
+  tauri_windows:
+    name: tauri build (windows)
+    runs-on: windows-latest
+    env:
+      RUSTFLAGS: --remap-path-prefix=${{ github.workspace }}=.
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: interface/package.json
+
+      - name: setup rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: install frontend deps
+        working-directory: interface
+        run: npm install
+
+      - name: tauri build
+        working-directory: interface
+        run: npm run tauri build
+
+      - name: upload windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ruststrap-windows
+          path: target/release/Ruststrap.exe

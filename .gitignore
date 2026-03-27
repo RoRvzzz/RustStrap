@@ -16,3 +16,5 @@ package-lock.json
 yarn.lock
 cargo.lock
 node_modules/
+*.git
+*.tag

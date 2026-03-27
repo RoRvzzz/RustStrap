@@ -669,6 +669,10 @@ fn dirs_start_menu() -> Option<PathBuf> {
     })
 }
 
+/*
+simple tests for the installer
+*/
+
 #[cfg(test)]
 mod tests {
     use super::*;

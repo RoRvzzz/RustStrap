@@ -624,9 +624,9 @@ fn ps_quote(value: &str) -> String {
 }
 
 fn run_ps(script: &str) -> Result<String> {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let output = Command::new("powershell")
+    let mut command = Command::new("powershell");
+    configure_hidden(&mut command);
+    let output = command
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -635,7 +635,6 @@ fn run_ps(script: &str) -> Result<String> {
             "-Command",
             script,
         ])
-        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|err| DomainError::Process(format!("powershell invocation failed: {err}")))?;
 

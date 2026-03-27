@@ -131,7 +131,7 @@ pub fn open_url(url: &str) -> Result<()> {
         Command::new("xdg-open")
             .arg(url)
             .spawn()
-            .map_err(|e| crate::errors::DomainError::Io(format!("failed to open url: {e}")))?;
+            .map_err(|e| crate::errors::DomainError::Process(format!("failed to open url: {e}")))?;
     }
 
     Ok(())
