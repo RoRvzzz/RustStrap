@@ -1,3 +1,12 @@
+
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 

@@ -1,11 +1,18 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
+
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::errors::{DomainError, Result};
 
-/// globalBasicSettings XML editor — reads/writes Roblox's `GlobalBasicSettings_13.xml`.
-/// mirrors Ruststrap's `GlobalSettingsManager.cs`.
 pub struct GlobalSettingsManager {
     pub file_location: PathBuf,
     pub loaded: bool,
@@ -108,20 +115,15 @@ impl GlobalSettingsManager {
     /// simple XML value extraction using regex (avoids full XML parser dependency).
     fn get_value_by_template(&self, template: &str) -> Option<String> {
         let content = self.content.as_ref()?;
-
-        // extract the attribute name from the template
         let attr_name = extract_attr_name(template)?;
-
-        // find the element with name="attrName" and extract its value
         let pattern = format!(r#"<[^>]*name=["']{attr_name}["'][^>]*>([^<]*)<"#);
         let re = regex::Regex::new(&pattern).ok()?;
-
         re.captures(content)
             .and_then(|caps| caps.get(1))
             .map(|m| m.as_str().to_string())
     }
 
-    /// simple XML value setting using string replacement.
+
     fn set_value_by_template(&mut self, template: &str, value: &str) {
         let content = match self.content.as_ref() {
             Some(c) => c.clone(),
@@ -133,7 +135,6 @@ impl GlobalSettingsManager {
             None => return,
         };
 
-        // replace element value
         let pattern = format!(r#"(<[^>]*name=["']{attr_name}["'][^>]*>)[^<]*(</)"#);
         if let Ok(re) = regex::Regex::new(&pattern) {
             let new_content = re
@@ -143,7 +144,7 @@ impl GlobalSettingsManager {
         }
     }
 
-    /// check if the file is read-only.
+
     pub fn get_read_only(&self) -> bool {
         if !self.file_location.exists() {
             return false;
