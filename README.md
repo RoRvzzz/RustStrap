@@ -1,6 +1,6 @@
 <div align="center">
-    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_black.png#gh-dark-mode-only" width="820">
-    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_white.png#gh-light-mode-only" width="820">
+    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_black.png#gh-light-mode-only" width="820">
+    <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_white.png#gh-dark-mode-only" width="820">
 
 [![License][badge-repo-license]][repo-license]
 [![Downloads][badge-repo-downloads]][repo-releases]
