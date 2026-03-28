@@ -570,7 +570,7 @@ function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: Laun
               <Info size={16} />
               <span>Installer Tool</span>
             </a>
-            <a href="https://discord.gg/KdR9vpRcUN" target="_blank" rel="noopener noreferrer">
+            <a href="https://discord.gg/macrostack" target="_blank" rel="noopener noreferrer">
               <MessageSquare size={16} />
               <span>Join our Discord</span>
             </a>
