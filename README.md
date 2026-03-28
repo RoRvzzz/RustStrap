@@ -9,7 +9,7 @@
 ![Stars][badge-repo-stars]
 </div>
 
-> [!ANNOUCMENT]
+> [!ANNOUNCEMENT]
 > Please star the repo if you enjoy it!
 
 > [!CAUTION]
