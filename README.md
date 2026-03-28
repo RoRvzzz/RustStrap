@@ -9,6 +9,9 @@
 ![Stars][badge-repo-stars]
 </div>
 
+> [!ANNOUCMENT]
+> Please star the repo if you enjoy it!
+
 > [!CAUTION]
 > The only official place to download Ruststrap is this GitHub repository.
 > Do not download binaries from mirrors, reupload sites, or unofficial domains.
