@@ -13,7 +13,13 @@
 > The only official place to download Ruststrap is this GitHub repository.
 > Do not download binaries from mirrors, reupload sites, or unofficial domains.
 
-*Ruststrap is a bootstrapper based on, Froststrap, Fishstrap and Bloxstrap but its built in rust. Hence why it is not a fork*
+> [!WARNING]
+> Ruststrap is still in very early beta and is very buggy
+> It is very prone to bugs in its current state
+
+
+*Ruststrap is a bootstrapper based on Froststrap and Fishstrap (which are both based on bloxstrap)*
+*Ruststrap is written entirely in rust using a tauri interface*
 
 ***Found a bug? [Open an issue](https://github.com/RoRvzzz/RustStrap/issues/new/choose) or report it in our [Discord server](https://discord.gg/macorstack).***
 
