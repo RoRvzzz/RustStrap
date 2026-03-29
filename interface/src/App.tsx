@@ -1409,6 +1409,18 @@ function PageDeployment({ s, set }: SettingsProps) {
         <Opt header="Channel" desc="Choose deployment channel.">
           <input type="text" value={s.Channel || "LIVE"} onChange={e => set("Channel", e.target.value)} style={{ width: 140 }} />
         </Opt>
+        <Opt
+          header="Version override"
+          desc="Optional downgrade target. Accepts version hash (version-...) or direct client version number (for example: 0.714.0.7141083). When set, this overrides channel selection."
+        >
+          <input
+            type="text"
+            value={s.ChannelHash || ""}
+            onChange={e => set("ChannelHash", e.target.value)}
+            placeholder="version-... or 0.x.x.x"
+            style={{ width: 260 }}
+          />
+        </Opt>
         <Opt header="Automatic channel change" desc="Action when Roblox tries to change your channel.">
           <select value={s.ChannelChangeMode} onChange={e => set("ChannelChangeMode", Number(e.target.value))}>
             <option value={0}>Always Prompt</option>

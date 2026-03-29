@@ -137,6 +137,12 @@ pub struct VersionRequestSpec {
     pub channel: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeploymentVersionOverride {
+    VersionGuid(String),
+    ClientVersionNumber(String),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct UserChannel {
     #[serde(rename = "channelName")]
@@ -182,6 +188,67 @@ pub fn compose_version_request(
         headers,
         channel: resolved_channel.to_string(),
     }
+}
+
+fn compose_version_lookup_request(binary_type: &str, client_version: &str) -> VersionRequestSpec {
+    let encoded_version = urlencoding::encode(client_version);
+    VersionRequestSpec {
+        url: format!(
+            "https://clientsettingscdn.roblox.com/v2/client-version/{binary_type}?version={encoded_version}"
+        ),
+        headers: HashMap::new(),
+        channel: DEFAULT_CHANNEL.to_string(),
+    }
+}
+
+fn is_hex_string(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|char| char.is_ascii_hexdigit())
+}
+
+fn is_direct_version_number(value: &str) -> bool {
+    let parts = value.split('.').collect::<Vec<_>>();
+    parts.len() >= 2
+        && parts
+            .iter()
+            .all(|part| !part.is_empty() && part.chars().all(|char| char.is_ascii_digit()))
+}
+
+fn parse_deployment_version_override(value: &str) -> Result<Option<DeploymentVersionOverride>> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let lower = trimmed.to_ascii_lowercase();
+
+    if let Some(hash) = lower.strip_prefix("version-") {
+        if is_hex_string(hash) {
+            return Ok(Some(DeploymentVersionOverride::VersionGuid(format!(
+                "version-{hash}"
+            ))));
+        }
+
+        return Err(DomainError::InvalidLaunchRequest(
+            "invalid deployment override: `version-` values must contain only hex characters"
+                .to_string(),
+        ));
+    }
+
+    if is_direct_version_number(trimmed) {
+        return Ok(Some(DeploymentVersionOverride::ClientVersionNumber(
+            trimmed.to_string(),
+        )));
+    }
+
+    if is_hex_string(&lower) {
+        return Ok(Some(DeploymentVersionOverride::VersionGuid(format!(
+            "version-{lower}"
+        ))));
+    }
+
+    Err(DomainError::InvalidLaunchRequest(
+        "invalid deployment override: expected a `version-<hash>`, bare hash, or a direct client version number".to_string(),
+    ))
 }
 
 fn normalize_channel_name(value: &str) -> String {
@@ -959,6 +1026,21 @@ impl FilesystemBootstrapRuntime {
         let channel_flag = extract_channel_flag(&args);
         let configured_channel = normalize_channel_name(&settings.channel);
         let binary_type = binary_type_for_mode(mode);
+
+        if let Some(override_mode) = parse_deployment_version_override(&settings.channel_hash)? {
+            return match override_mode {
+                DeploymentVersionOverride::VersionGuid(version_guid) => Ok(ClientVersionInfo {
+                    version: version_guid.clone(),
+                    version_guid,
+                    is_behind_default_channel: false,
+                }),
+                DeploymentVersionOverride::ClientVersionNumber(client_version) => {
+                    let request = compose_version_lookup_request(binary_type, &client_version);
+                    fetch_client_version_with_fallback(&request)
+                }
+            };
+        }
+
         let user_channel = self.try_fetch_user_channel(binary_type, &settings)?;
 
         let enrollment = resolve_channel_enrollment(
@@ -1443,6 +1525,45 @@ mod tests {
             Some("secret-token")
         );
         assert!(request.url.contains("/channel/znext"));
+    }
+
+    #[test]
+    fn compose_lookup_request_uses_version_query_parameter() {
+        let request = compose_version_lookup_request("WindowsPlayer", "0.714.0.7141083");
+        assert_eq!(
+            request.url,
+            "https://clientsettingscdn.roblox.com/v2/client-version/WindowsPlayer?version=0.714.0.7141083"
+        );
+    }
+
+    #[test]
+    fn deployment_override_accepts_bare_hash() {
+        let parsed = parse_deployment_version_override("6776addb8fbc4d17")
+            .expect("parse override")
+            .expect("override value");
+
+        assert_eq!(
+            parsed,
+            DeploymentVersionOverride::VersionGuid("version-6776addb8fbc4d17".to_string())
+        );
+    }
+
+    #[test]
+    fn deployment_override_accepts_direct_version_number() {
+        let parsed = parse_deployment_version_override("0.714.0.7141083")
+            .expect("parse override")
+            .expect("override value");
+
+        assert_eq!(
+            parsed,
+            DeploymentVersionOverride::ClientVersionNumber("0.714.0.7141083".to_string())
+        );
+    }
+
+    #[test]
+    fn deployment_override_rejects_invalid_value() {
+        let result = parse_deployment_version_override("not-a-valid-version");
+        assert!(result.is_err());
     }
 
     #[test]
