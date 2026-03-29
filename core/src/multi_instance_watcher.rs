@@ -3,7 +3,7 @@ use std::time::Duration;
 
 /// multi-instance watcher — acquires the Roblox singleton mutex to allow
 /// multiple instances, then polls until all Roblox processes exit.
-/// mirrors Ruststrap's `MultiInstanceWatcher.cs`.
+
 
 /// run the multi-instance watcher. Blocks until all Roblox processes close.
 #[cfg(windows)]

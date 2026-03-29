@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-// section: gamejointype
+/// gamejoin types
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GameJoinType {
@@ -43,7 +43,7 @@ impl ServerType {
     }
 }
 
-// section: cursortype
+// cursor type
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CursorType {
@@ -58,7 +58,7 @@ impl Default for CursorType {
     }
 }
 
-// section: emojitype
+// emoji type
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EmojiType {
@@ -74,6 +74,7 @@ impl Default for EmojiType {
 }
 
 // section: robloxicon
+// this is like so repititive I should just copy and paste and change the names lmao
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RobloxIcon {

@@ -1,8 +1,9 @@
-/* Ruststrap UI - Modern Tauri Styling */
+/* styles are subject to change as the ui was put together in a hurry */
+
+
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  /* Base colors */
   --bg-base: #0f0f0f;
   --bg-elevated: #1a1a1a;
   --bg-card: #1f1f1f;
@@ -10,41 +11,27 @@
   --bg-input: rgba(255, 255, 255, 0.04);
   --bg-input-hover: rgba(255, 255, 255, 0.06);
   --bg-table: #1a1a1a;
-  
-  /* Borders */
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.12);
   --border-active: rgba(255, 255, 255, 0.16);
   --border-focus: var(--accent);
-
-  /* Accent - Orange */
   --accent: #f97316;
   --accent-hover: #fb923c;
   --accent-dim: rgba(249, 115, 22, 0.12);
   --accent-glow: rgba(249, 115, 22, 0.25);
-  
-  /* Semantic */
   --danger: #ef4444;
   --danger-dim: rgba(239, 68, 68, 0.12);
   --success: #22c55e;
   --warning: #eab308;
-
-  /* Text */
   --text: #fafafa;
   --text-secondary: #a1a1a1;
   --text-muted: #737373;
-
-  /* Sizing */
   --radius-sm: 6px;
   --radius: 10px;
   --radius-lg: 14px;
-  
-  /* Transitions */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --duration: 150ms;
 }
-
-/* Reset */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -68,7 +55,6 @@ body {
   user-select: none;
 }
 
-/* App Shell */
 .app-shell {
   height: 100vh;
   display: flex;
@@ -98,7 +84,6 @@ body {
   padding: 12px;
 }
 
-/* Titlebar */
 .titlebar {
   display: flex;
   align-items: center;
@@ -147,7 +132,6 @@ body {
   color: white;
 }
 
-/* Sidebar */
 .sidebar {
   width: 220px;
   display: flex;
@@ -204,7 +188,6 @@ body {
   border-radius: 0 2px 2px 0;
 }
 
-/* Main Content */
 .main-content {
   flex: 1;
   min-width: 0;
@@ -228,7 +211,6 @@ body {
   }
 }
 
-/* Page Header */
 .page-header {
   margin-bottom: 24px;
 }
@@ -247,7 +229,6 @@ body {
   line-height: 1.5;
 }
 
-/* Section & Groups */
 .section-container {
   margin-bottom: 24px;
 }
@@ -268,7 +249,6 @@ body {
   line-height: 1.5;
 }
 
-/* Card Group */
 .card-group {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -276,7 +256,6 @@ body {
   overflow: hidden;
 }
 
-/* Control Row */
 .control-row {
   display: flex;
   align-items: center;
@@ -321,7 +300,6 @@ body {
   align-items: center;
 }
 
-/* Toggle Switch */
 .toggle {
   display: inline-flex;
   cursor: pointer;
@@ -361,7 +339,6 @@ body {
   background: white;
 }
 
-/* Form Controls */
 select,
 input[type="text"],
 input[type="number"] {
@@ -400,7 +377,6 @@ select {
   background-position: right 10px center;
 }
 
-/* Buttons */
 .btn-primary {
   display: inline-flex;
   align-items: center;
@@ -499,7 +475,7 @@ select {
   background: var(--danger-dim);
 }
 
-/* Warning Banner */
+
 .warning-banner {
   display: flex;
   align-items: center;
@@ -514,7 +490,7 @@ select {
   margin-bottom: 16px;
 }
 
-/* Footer Bar */
+
 .footer-bar {
   display: flex;
   justify-content: space-between;
@@ -530,7 +506,6 @@ select {
   gap: 8px;
 }
 
-/* Integrations Panel */
 .integrations-panel {
   display: grid;
   grid-template-columns: 200px 1fr;
@@ -619,7 +594,6 @@ select {
   accent-color: var(--accent);
 }
 
-/* Fast Flags Table */
 .ff-add-row {
   display: flex;
   gap: 8px;
@@ -687,7 +661,6 @@ select {
   opacity: 1;
 }
 
-/* Expander */
 .expander-header {
   display: flex;
   justify-content: space-between;
@@ -724,7 +697,7 @@ select {
   border-bottom: 1px solid var(--border);
 }
 
-/* Loading Spinner */
+
 .loading-spinner {
   width: 32px;
   height: 32px;
@@ -740,7 +713,7 @@ select {
   }
 }
 
-/* Scrollbar */
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -758,10 +731,6 @@ select {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
-
-/* ========================================
-   LAUNCHER VIEW
-   ======================================== */
 
 .launcher-page {
   height: 100vh;
@@ -969,10 +938,6 @@ select {
   margin: 4px 0;
 }
 
-/* ========================================
-   INSTALLER VIEW
-   ======================================== */
-
 .installer-page {
   height: 100vh;
   display: flex;
@@ -1074,7 +1039,6 @@ select {
   gap: 8px;
 }
 
-/* Language Grid */
 .language-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1110,7 +1074,6 @@ select {
   font-weight: 500;
 }
 
-/* Import Selector */
 .import-selector {
   display: flex;
   gap: 8px;
@@ -1138,10 +1101,6 @@ select {
   border-color: var(--accent);
   color: var(--accent);
 }
-
-/* ========================================
-   BOOTSTRAP OVERLAY
-   ======================================== */
 
 .bootstrap-overlay {
   height: 100vh;

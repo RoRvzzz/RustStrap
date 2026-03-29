@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::errors::{DomainError, Result};
 
-/// cookie authentication state — mirrors Ruststrap's CookieState enum.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CookieState {

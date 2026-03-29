@@ -31,7 +31,7 @@ pub struct UpdateCheckResult {
 
 /// update check
 pub fn check_for_updates(current_version: &str, repo: &str) -> Result<UpdateCheckResult> {
-    let url = format!("https://api.github.com/repos/{repo}/releases/latest");
+    let url = format!("https://api.github.com/repos/{repo}/releases/latest"); /*   bad   */
 
     let client = reqwest::blocking::Client::builder()
         .user_agent("Ruststrap/0.1")

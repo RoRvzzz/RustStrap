@@ -54,7 +54,7 @@ fn regex_match_string(url: &str, query: &str, pattern: &str) -> String {
 }
 
 /// parse a `roblox-player:` launch command into structured join data.
-/// mirrors Ruststrap's `GameJoin.GetJoinDataByLaunchCommand`.
+
 pub fn parse_launch_command(launch_command: &str) -> GameJoinData {
     let mut join_data = GameJoinData::default();
 

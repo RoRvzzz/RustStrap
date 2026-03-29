@@ -309,7 +309,7 @@ fn decode_utf16_multi_string(bytes: &[u8]) -> Vec<String> {
 }
 
 /// register the `roblox:` and `roblox-player:` protocol handlers.
-/// mirrors Ruststrap's WindowsRegistry.RegisterPlayer().
+
 pub fn register_player_protocol(
     backend: &dyn RegistryBackend,
     player_exe: Option<&str>,
@@ -351,7 +351,7 @@ pub fn register_player_protocol(
 }
 
 /// register Roblox Studio protocol handlers.
-/// mirrors Ruststrap's WindowsRegistry.RegisterStudio().
+
 pub fn register_studio_protocol(
     backend: &dyn RegistryBackend,
     studio_exe: Option<&str>,
@@ -412,7 +412,7 @@ pub fn register_studio_protocol(
 }
 
 /// register the client install location in the registry.
-/// mirrors Ruststrap's WindowsRegistry.RegisterClientLocation().
+
 pub fn register_client_location(
     backend: &dyn RegistryBackend,
     is_studio: bool,

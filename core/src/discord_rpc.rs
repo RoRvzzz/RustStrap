@@ -3,7 +3,6 @@ use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use discord_presence::Client as DiscordClient;
-
 use crate::activity_data::ActivityData;
 use crate::enums::ServerType;
 use crate::errors::{DomainError, Result};
@@ -11,6 +10,8 @@ use crate::roblox_api::{
     GameDetailData, GameDetailResponse, GetUserResponse, RpcMessage, RpcRichPresence,
     ThumbnailBatchResponse, ThumbnailCacheEntry,
 };
+
+/// I hate this shit bro
 
 pub const DISCORD_APP_ID: &str = "1486934007370354848";
 const RUSTSTRAP_IMAGE_SOURCE: &str =
@@ -697,6 +698,9 @@ pub fn query_server_location(ip: &str) -> Result<Option<String>> {
 
     Ok(geo.location.map(|loc| loc.display()))
 }
+
+/// tests cuz rpc = israel
+
 
 #[cfg(test)]
 mod tests {

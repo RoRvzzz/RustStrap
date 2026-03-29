@@ -1,12 +1,10 @@
 #[cfg(windows)]
 use std::ffi::OsStr;
 
-/// window manipulation for Roblox (borderless fullscreen, custom title/icon).
-/// mirrors Ruststrap's `Integrations/WindowManipulation.cs`.
+////////////////
+/// fake borderless mode implementation 
+///////////////
 
-/// apply fake borderless fullscreen to a Roblox window.
-/// strips WS_CAPTION, WS_THICKFRAME, WS_MINIMIZEBOX, WS_MAXIMIZEBOX, WS_SYSMENU
-/// and resizes to fill the primary screen.
 #[cfg(windows)]
 pub fn apply_borderless_fullscreen(hwnd: isize) {
     extern "system" {

@@ -18,3 +18,6 @@ cargo.lock
 node_modules/
 *.git
 *.tag
+
+# unfinished exploits and weao api support
+core/src/exploits/

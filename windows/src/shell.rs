@@ -13,6 +13,8 @@ pub trait ShellBackend {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct WindowsShellBackend;
 
+// old windows shell backend where we would use cmd to open urls but this sucks
+
 #[cfg(windows)]
 impl ShellBackend for WindowsShellBackend {
     fn open_url(&self, url: &str) -> Result<()> {

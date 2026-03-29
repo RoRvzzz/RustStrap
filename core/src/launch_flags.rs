@@ -7,6 +7,10 @@ pub enum LaunchMode {
     StudioAuth,
 }
 
+///
+/// havent tested studio at all so uh if it doesnt work then its goy
+/// 
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaunchFlag {
     pub identifiers: &'static [&'static str],

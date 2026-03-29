@@ -5,7 +5,6 @@ use crate::errors::{DomainError, Result};
 use crate::roblox_api::RemoteDataBase;
 
 /// remote data manager — fetches configuration from a remote URL with local fallback.
-/// mirrors Ruststrap's `RemoteData.cs`.
 pub struct RemoteDataManager {
     pub data: RemoteDataBase,
     pub loaded_state: GenericTriState,

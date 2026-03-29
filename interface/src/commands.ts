@@ -60,7 +60,7 @@ interface StartupLaunch {
 }
 
 export const commands = {
-  // Settings
+  // setttings
   async getSettings(): Promise<Settings> {
     return invoke<Settings>("get_settings");
   },
@@ -70,7 +70,7 @@ export const commands = {
     return invoke("save_settings", { settingsJson: JSON.stringify(settings) });
   },
 
-  // Fast Flags
+  // ffs
   async getFastFlags(): Promise<Record<string, unknown>> {
     return invoke<Record<string, unknown>>("get_fast_flags");
   },
@@ -80,7 +80,7 @@ export const commands = {
     return invoke("save_fast_flags", { flagsJson: JSON.stringify(flags) });
   },
 
-  // Runtime
+  // runtime
   async ensureRuntimeReady(): Promise<RuntimeStatus> {
     return invoke<RuntimeStatus>("ensure_runtime_ready");
   },

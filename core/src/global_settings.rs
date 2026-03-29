@@ -20,7 +20,7 @@ pub struct GlobalSettingsManager {
     pub previous_read_only_state: bool,
 }
 
-/// preset paths for common settings (XPath-like, using `{UserSettings}` placeholder).
+/// preset paths for common settings
 pub fn preset_paths() -> HashMap<&'static str, &'static str> {
     let mut m = HashMap::new();
     m.insert(

@@ -534,10 +534,6 @@ export function App() {
   );
 }
 
-/* ========================================
-   LAUNCHER VIEW
-   ======================================== */
-
 interface LauncherViewProps {
   setView: (view: string) => void;
   saveAndLaunch: () => Promise<void>;
@@ -570,7 +566,7 @@ function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: Laun
               <Info size={16} />
               <span>Installer Tool</span>
             </a>
-            <a href="https://discord.gg/KdR9vpRcUN" target="_blank" rel="noopener noreferrer">
+            <a href="https://discord.gg/macrostack" target="_blank" rel="noopener noreferrer"> {/*i need to finish the wiki but we got discord*/}
               <MessageSquare size={16} />
               <span>Join our Discord</span>
             </a>
@@ -605,10 +601,6 @@ function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: Laun
     </div>
   );
 }
-
-/* ========================================
-   INSTALLER VIEW
-   ======================================== */
 
 const SUPPORTED_LOCALES: [string, string][] = [
   ["nil", "System Default"],
@@ -826,10 +818,6 @@ function InstallerView({ setView, settings, set }: InstallerViewProps) {
   );
 }
 
-/* ========================================
-   SHARED COMPONENTS
-   ======================================== */
-
 type SettingsProps = { 
   s: Settings; 
   set: <K extends keyof Settings>(k: K, v: Settings[K]) => void;
@@ -889,10 +877,6 @@ function Expander({ title, desc, children }: { title: string; desc?: string; chi
     </div>
   );
 }
-
-/* ========================================
-   PAGE: INTEGRATIONS
-   ======================================== */
 
 function PageIntegrations({ s, set }: SettingsProps) {
   const [selIdx, setSelIdx] = useState(-1);
@@ -1069,10 +1053,6 @@ function PageIntegrations({ s, set }: SettingsProps) {
   );
 }
 
-/* ========================================
-   PAGE: BOOTSTRAPPER
-   ======================================== */
-
 function PageBootstrapper({ s, set }: SettingsProps) {
   return (
     <div className="page">
@@ -1174,10 +1154,6 @@ function PageBootstrapper({ s, set }: SettingsProps) {
     </div>
   );
 }
-
-/* ========================================
-   PAGE: REGION SELECTOR
-   ======================================== */
 
 function PageRegionSelector({ s, set }: SettingsProps) {
   return (
@@ -1402,10 +1378,6 @@ function RegionBrowser({ s, set }: SettingsProps) {
   );
 }
 
-/* ========================================
-   PAGE: DEPLOYMENT
-   ======================================== */
-
 function PageDeployment({ s, set }: SettingsProps) {
   return (
     <div className="page">
@@ -1441,10 +1413,6 @@ function PageDeployment({ s, set }: SettingsProps) {
     </div>
   );
 }
-
-/* ========================================
-   PAGE: MODS
-   ======================================== */
 
 function PageMods({ s, set }: SettingsProps) {
   const cursorTypes = [{ v: 0, l: "Default" }, { v: 1, l: "From 2006" }, { v: 2, l: "From 2013" }];
@@ -1496,9 +1464,6 @@ function PageMods({ s, set }: SettingsProps) {
   );
 }
 
-/* ========================================
-   PAGE: FAST FLAGS
-   ======================================== */
 
 function PageFastFlags({ flags, setFlags, s, set }: { flags: Record<string, string>; setFlags: React.Dispatch<React.SetStateAction<Record<string, string>>> } & SettingsProps) {
   const [newKey, setNewKey] = useState("");
@@ -1600,10 +1565,6 @@ function PageFastFlags({ flags, setFlags, s, set }: { flags: Record<string, stri
   );
 }
 
-/* ========================================
-   PAGE: APPEARANCE
-   ======================================== */
-
 function PageAppearance({ s, set }: SettingsProps) {
   const themes = [{ v: 0, l: "Dark (Default)" }, { v: 1, l: "Light" }, { v: 2, l: "System" }];
   const bootstrapperStyles = [{ v: 0, l: "Progress Dialog" }, { v: 1, l: "Legacy" }, { v: 2, l: "Compact" }];
@@ -1665,10 +1626,6 @@ function PageAppearance({ s, set }: SettingsProps) {
   );
 }
 
-/* ========================================
-   PAGE: SHORTCUTS
-   ======================================== */
-
 function PageShortcuts() {
   return (
     <div className="page">
@@ -1685,10 +1642,6 @@ function PageShortcuts() {
     </div>
   );
 }
-
-/* ========================================
-   PAGE: ABOUT
-   ======================================== */
 
 function PageAbout() {
   return (

@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::enums::ServerType;
 
-/// tracks a single game activity session. Mirrors Ruststrap's ActivityData.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ActivityData {
     pub universe_id: i64,

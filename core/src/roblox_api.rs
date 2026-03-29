@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-// section: thumbnail api
+// w rovalra
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThumbnailRequest {
