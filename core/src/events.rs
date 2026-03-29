@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

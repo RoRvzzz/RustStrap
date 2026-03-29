@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 #![forbid(unsafe_code)]
 
 mod events;

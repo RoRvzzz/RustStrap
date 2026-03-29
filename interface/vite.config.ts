@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 

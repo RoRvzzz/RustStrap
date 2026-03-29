@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};

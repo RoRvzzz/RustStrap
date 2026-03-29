@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+#
+# https://rorvzzz.cool
+#
 [workspace]
 resolver = "2"
 members = [

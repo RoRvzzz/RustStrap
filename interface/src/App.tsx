@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 import React, { useEffect, useState } from "react";
 import { commands } from "./commands";
 import { 

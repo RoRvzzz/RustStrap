@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use crate::{DomainError, DomainEvent, LaunchMode, PromptKind, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

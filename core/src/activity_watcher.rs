@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader};

@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type EventName =

@@ -1,3 +1,10 @@
+<!--
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+-->
 <div align="center">
     <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_black.png#gh-light-mode-only" width="820">
     <img src="https://github.com/RoRvzzz/RustStrap/raw/main/interface/public/banner_white.png#gh-dark-mode-only" width="820">

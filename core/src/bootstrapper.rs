@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use crate::ParsedLaunchSettings;
 use crate::Result;
 use crate::{run_bootstrap_flow, BootstrapContext, BootstrapReport, BootstrapRuntime, LaunchMode};

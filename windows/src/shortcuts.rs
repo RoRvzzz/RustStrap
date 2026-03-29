@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use anyhow::{anyhow, Result};
 use std::path::PathBuf;
 use std::process::Command;

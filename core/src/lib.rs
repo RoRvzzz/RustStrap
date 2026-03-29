@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 pub mod activity_data;
 pub mod activity_watcher;
 pub mod bootstrapper;

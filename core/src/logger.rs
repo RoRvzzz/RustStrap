@@ -1,3 +1,10 @@
+/*
+
+Copyright (c) 2026-present, RoRvzzz. All rights reserved.
+
+https://rorvzzz.cool
+
+*/
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
