@@ -616,6 +616,15 @@ async fn open_settings(app: AppHandle, host: State<'_, RuntimeHost>) -> CommandR
 }
 
 #[tauri::command]
+async fn open_external_url(host: State<'_, RuntimeHost>, url: String) -> CommandResult {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err("url cannot be empty".to_string());
+    }
+    host.shell.open_url(trimmed).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 async fn run_background_updater(app: AppHandle, host: State<'_, RuntimeHost>) -> CommandResult {
     let args = ParsedLaunchSettings::parse(&[
         "-player".to_string(),
@@ -1040,6 +1049,24 @@ async fn get_discord_presence() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
+async fn weao_exploits_statuses() -> Result<serde_json::Value, String> {
+    let statuses = Ruststrap_core::weao_exploit_statuses().map_err(|e| e.to_string())?;
+    serde_json::to_value(statuses).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn weao_exploit_status(exploit: String) -> Result<serde_json::Value, String> {
+    let status = Ruststrap_core::weao_exploit_status(&exploit).map_err(|e| e.to_string())?;
+    serde_json::to_value(status).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn weao_sunc_data(scrap: String, key: String) -> Result<serde_json::Value, String> {
+    let data = Ruststrap_core::weao_sunc_data(&scrap, &key).map_err(|e| e.to_string())?;
+    serde_json::to_value(data).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn take_startup_launch(host: State<'_, RuntimeHost>) -> Result<serde_json::Value, String> {
     let mut state = host
         .startup_launch
@@ -1170,6 +1197,7 @@ pub fn run() {
             launch_player,
             launch_studio,
             open_settings,
+            open_external_url,
             run_background_updater,
             check_updates,
             apply_modifications,
@@ -1198,6 +1226,9 @@ pub fn run() {
             get_roblox_title,
             fetch_universe_details_cmd,
             get_discord_presence,
+            weao_exploits_statuses,
+            weao_exploit_status,
+            weao_sunc_data,
             take_startup_launch,
             region_selector_status_cmd,
             region_selector_datacenters_cmd,

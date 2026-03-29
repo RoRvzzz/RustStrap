@@ -17,6 +17,7 @@ pub mod discord_rpc;
 pub mod enums;
 pub mod errors;
 pub mod events;
+pub mod exploits;
 pub mod fast_flags;
 pub mod game_join;
 pub mod global_settings;
@@ -83,6 +84,10 @@ pub use discord_rpc::{
     DISCORD_APP_ID,
 };
 pub use enums::*;
+pub use exploits::{
+    weao_exploit_status, weao_exploit_statuses, weao_sunc_data, WeaoExploitStatus, WeaoSuncData,
+    WeaoSuncKeys, WeaoSuncTestEntry, WeaoSuncTests,
+};
 pub use game_join::{parse_launch_command, GameJoinData};
 pub use global_settings::GlobalSettingsManager;
 pub use launch_handler::{

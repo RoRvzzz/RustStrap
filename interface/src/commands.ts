@@ -66,6 +66,25 @@ interface StartupLaunch {
   rawArgs?: string | null;
 }
 
+interface WeaoExploitStatus {
+  title: string;
+  version?: string | null;
+  updated_date?: string | null;
+  update_status?: boolean | null;
+  [key: string]: unknown;
+}
+
+interface WeaoSuncData {
+  version?: string | null;
+  executor?: string | null;
+  outdated?: boolean | null;
+  tests?: {
+    passed?: unknown[];
+    failed?: unknown[];
+  };
+  [key: string]: unknown;
+}
+
 export const commands = {
   // setttings
   async getSettings(): Promise<Settings> {
@@ -139,6 +158,22 @@ export const commands = {
   // Settings folder
   async openSettings(): Promise<void> {
     return invoke("open_settings");
+  },
+
+  async openExternalUrl(url: string): Promise<void> {
+    return invoke("open_external_url", { url });
+  },
+
+  async weaoExploitStatuses(): Promise<WeaoExploitStatus[]> {
+    return invoke<WeaoExploitStatus[]>("weao_exploits_statuses");
+  },
+
+  async weaoExploitStatus(exploit: string): Promise<WeaoExploitStatus> {
+    return invoke<WeaoExploitStatus>("weao_exploit_status", { exploit });
+  },
+
+  async weaoSuncData(scrap: string, key: string): Promise<WeaoSuncData> {
+    return invoke<WeaoSuncData>("weao_sunc_data", { scrap, key });
   },
 
   // Region Selector

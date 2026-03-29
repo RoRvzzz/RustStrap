@@ -5,7 +5,7 @@ Copyright (c) 2026-present, RoRvzzz. All rights reserved.
 https://rorvzzz.cool
 
 */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { commands } from "./commands";
 import { 
   Puzzle, 
@@ -18,16 +18,22 @@ import {
   Info, 
   Menu, 
   MessageSquare, 
-  Blocks, 
   BookOpen, 
   MapPin,
   ChevronDown,
   Plus,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Minus,
+  RefreshCw,
+  Search,
+  Square,
+  X
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
+import voxlisWordmarkFill from "./themes/voxlisName.png";
+import voxlisWordmarkOutline from "./themes/voxlis.png";
 
 interface Settings {
   AllowCookieAccess: boolean;
@@ -87,6 +93,8 @@ interface Settings {
   MultibloxDelayMs: number;
   SelectedProcessPriority: number;
   SelectedRegion: string;
+  EnableExploitSelection: boolean;
+  SelectedExploit: string;
   extra?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -160,7 +168,81 @@ interface StartupLaunch {
   rawArgs?: string | null;
 }
 
+interface WeaoExploitStatus {
+  title: string;
+  version?: string | null;
+  update_status?: boolean | null;
+  detected?: boolean | null;
+  free?: boolean | null;
+  hidden?: boolean | null;
+  platform?: string | null;
+  exploit_type?: string | null;
+  [key: string]: unknown;
+}
+
 const BOOTSTRAP_PHASE_TOTAL = 6;
+const THEME_DARK_VALUE = 0;
+const THEME_LIGHT_VALUE = 1;
+const THEME_SYSTEM_VALUE = 2;
+const THEME_VOXLIS_VALUE = 3;
+
+const RUSTSTRAP_GITHUB_URL = "https://github.com/RoRvzzz/Ruststrap";
+const RUSTSTRAP_DISCORD_URL = "https://discord.gg/macrostack";
+const VOXLIS_WORDMARK_MASK_STYLE = {
+  "--voxlis-wordmark-mask": `url(${voxlisWordmarkFill})`,
+} as React.CSSProperties;
+
+const WEAO_WINDOWS_PLATFORM = "windows";
+const EXPLOIT_LOGO_EXTENSIONS = ["png", "webp", "jpg", "jpeg", "svg"] as const;
+
+function normalizeSettingsForUi(raw: Settings): Settings {
+  return {
+    ...raw,
+    EnableExploitSelection: Boolean(raw.EnableExploitSelection),
+    SelectedExploit:
+      typeof raw.SelectedExploit === "string" ? raw.SelectedExploit : "",
+  };
+}
+
+function exploitNameCandidates(title: string): string[] {
+  const base = title.trim();
+  const compact = base.replace(/\s+/g, "");
+  const alphaNumeric = base.replace(/[^a-zA-Z0-9]/g, "");
+  const noDots = base.replace(/\./g, "");
+  const dashed = base.replace(/\s+/g, "-");
+  return Array.from(
+    new Set([base, compact, alphaNumeric, noDots, dashed].filter(Boolean))
+  );
+}
+
+function exploitLogoCandidates(exploit: Pick<WeaoExploitStatus, "title" | "exploit_type">): string[] {
+  const isExternal =
+    (exploit.exploit_type || "").toLowerCase().includes("external");
+  const primaryDir = isExternal
+    ? "/assets/Executors/windows/externals"
+    : "/assets/Executors/windows";
+  const secondaryDir = isExternal
+    ? "/assets/Executors/windows"
+    : "/assets/Executors/windows/externals";
+  const names = exploitNameCandidates(exploit.title);
+  const out: string[] = [];
+
+  for (const dir of [primaryDir, secondaryDir]) {
+    for (const name of names) {
+      for (const ext of EXPLOIT_LOGO_EXTENSIONS) {
+        out.push(`${dir}/${name}.${ext}`);
+      }
+    }
+  }
+
+  return out;
+}
+
+function openExternalLink(url: string): void {
+  void commands.openExternalUrl(url).catch(() => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  });
+}
 
 function unwrapEnvelopePayload(payload: unknown): Record<string, unknown> {
   if (payload && typeof payload === "object" && "payload" in payload) {
@@ -212,11 +294,48 @@ export function App() {
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const [bootstrapStatus, setBootstrapStatus] = useState("");
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const [activeExploit, setActiveExploit] = useState("");
+  const [weaoExploits, setWeaoExploits] = useState<WeaoExploitStatus[]>([]);
+  const [weaoLoading, setWeaoLoading] = useState(false);
+  const [weaoError, setWeaoError] = useState("");
+  const [showExploitPicker, setShowExploitPicker] = useState(false);
 
   const startBootstrapOverlay = (label: string) => {
     setIsBootstrapping(true);
     setBootstrapStatus(label);
     setProgress({ current: 0, total: BOOTSTRAP_PHASE_TOTAL });
+  };
+
+  const exploitSelectionEnabled = Boolean(settings?.EnableExploitSelection);
+  const selectedExploit = (settings?.SelectedExploit || "").trim();
+
+  const loadWeaoExploits = async (force = false): Promise<WeaoExploitStatus[]> => {
+    if (!force && weaoExploits.length > 0) {
+      return weaoExploits;
+    }
+
+    setWeaoLoading(true);
+    setWeaoError("");
+    try {
+      const statuses = (await commands.weaoExploitStatuses()) as WeaoExploitStatus[];
+      const filtered = statuses
+        .filter((item) => !item.hidden)
+        .filter((item) => {
+          const platform = (item.platform || "").trim();
+          return !platform || platform.toLowerCase() === WEAO_WINDOWS_PLATFORM;
+        })
+        .sort((a, b) => a.title.localeCompare(b.title));
+      setWeaoExploits(filtered);
+      if (filtered.length === 0) {
+        setWeaoError("WEAO returned no selectable exploits.");
+      }
+      return filtered;
+    } catch (error: unknown) {
+      setWeaoError(`WEAO list failed: ${String(error)}`);
+      return [];
+    } finally {
+      setWeaoLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -226,6 +345,57 @@ export function App() {
       .then((version) => setAppVersion(version))
       .catch(() => setAppVersion("0.1.0"));
   }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const selectedTheme = Number(settings?.Theme ?? THEME_DARK_VALUE);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+
+    const applyTheme = () => {
+      if (selectedTheme === THEME_VOXLIS_VALUE) {
+        root.setAttribute("data-ruststrap-theme", "voxlis");
+      } else {
+        root.removeAttribute("data-ruststrap-theme");
+      }
+
+      let mode: "dark" | "light" = "dark";
+      if (selectedTheme === THEME_LIGHT_VALUE) {
+        mode = "light";
+      } else if (selectedTheme === THEME_SYSTEM_VALUE) {
+        mode = media.matches ? "dark" : "light";
+      }
+      root.setAttribute("data-ruststrap-mode", mode);
+    };
+
+    applyTheme();
+
+    if (selectedTheme !== THEME_SYSTEM_VALUE) {
+      return;
+    }
+
+    const handleChange = () => applyTheme();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", handleChange);
+      return () => media.removeEventListener("change", handleChange);
+    }
+    media.addListener(handleChange);
+    return () => media.removeListener(handleChange);
+  }, [settings?.Theme]);
+
+  useEffect(() => {
+    return () => {
+      const root = document.documentElement;
+      root.removeAttribute("data-ruststrap-theme");
+      root.removeAttribute("data-ruststrap-mode");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!settings?.EnableExploitSelection) {
+      return;
+    }
+    void loadWeaoExploits();
+  }, [settings?.EnableExploitSelection]);
 
   useEffect(() => {
     const unsubs: (() => void)[] = [];
@@ -272,9 +442,11 @@ export function App() {
   async function load() {
     setBusy(true);
     let startupLaunch: StartupLaunch | null = null;
+    let loadedSettings: Settings | null = null;
     try {
-      const s = await commands.getSettings();
-      setSettings(s as Settings);
+      const s = normalizeSettingsForUi((await commands.getSettings()) as Settings);
+      loadedSettings = s;
+      setSettings(s);
       const f = await commands.getFastFlags();
       setFastFlags(normalizeFastFlags(f || {}));
       const runtime = await commands.ensureRuntimeReady();
@@ -303,7 +475,26 @@ export function App() {
 
     const mode = (startupLaunch?.mode || "").toLowerCase();
     if (mode === "player" || mode === "studio" || mode === "studio_auth") {
-      startBootstrapOverlay(mode === "player" ? "Starting Roblox..." : "Starting Studio...");
+      const launchExploit =
+        mode === "player" && loadedSettings?.EnableExploitSelection
+          ? (loadedSettings.SelectedExploit || "").trim()
+          : "";
+
+      if (mode === "player" && loadedSettings?.EnableExploitSelection && !launchExploit) {
+        setView("launcher");
+        setShowExploitPicker(true);
+        setStatus("Exploit selection is enabled. Pick your exploit before launching.");
+        return;
+      }
+
+      setActiveExploit(launchExploit);
+      startBootstrapOverlay(
+        mode === "player"
+          ? launchExploit
+            ? `Starting Roblox with ${launchExploit}...`
+            : "Starting Roblox..."
+          : "Starting Studio..."
+      );
       try {
         if (mode === "player") {
           await commands.launchPlayer(startupLaunch?.rawArgs || undefined);
@@ -315,6 +506,8 @@ export function App() {
         setIsBootstrapping(false);
         setView("settings");
         setStatus(`Startup launch error: ${String(error)}`);
+      } finally {
+        setActiveExploit("");
       }
     }
   }
@@ -338,6 +531,18 @@ export function App() {
     if (!settings) return;
     setBusy(true);
     try {
+      let launchExploit = "";
+      if (settings.EnableExploitSelection) {
+        launchExploit = (settings.SelectedExploit || "").trim();
+        if (!launchExploit) {
+          await loadWeaoExploits();
+          setView("launcher");
+          setShowExploitPicker(true);
+          setStatus("Exploit selection is enabled. Pick your exploit before launching.");
+          return;
+        }
+      }
+
       const runtime = await commands.ensureRuntimeReady();
       setRuntimeStatus(runtime);
       if (runtime?.relaunched) {
@@ -353,7 +558,12 @@ export function App() {
       await commands.saveSettings(settings);
       await commands.saveFastFlags(fastFlags);
       try { await commands.applyModifications(); } catch (_) { /* ignore */ }
-      startBootstrapOverlay("Starting Roblox...");
+      setActiveExploit(launchExploit);
+      startBootstrapOverlay(
+        launchExploit
+          ? `Starting Roblox with ${launchExploit}...`
+          : "Starting Roblox..."
+      );
       await commands.launchPlayer();
       await commands.winClose();
     } catch (e: unknown) {
@@ -370,44 +580,24 @@ export function App() {
       setView("settings");
       setStatus(`Launch error: ${String(e)}`);
     } finally {
-      setBusy(false);
-    }
-  }
-
-  async function launchStudio() {
-    setBusy(true);
-    try {
-      const runtime = await commands.ensureRuntimeReady();
-      setRuntimeStatus(runtime);
-      if (runtime?.relaunched) {
-        await commands.winClose();
-        return;
-      }
-      if (runtime?.install_required) {
-        setView("installer");
-        setStatus("Runtime setup is required");
-        return;
-      }
-      await commands.launchStudio();
-    } catch (e: unknown) {
-      try {
-        const runtime = await commands.getRuntimeStatus();
-        setRuntimeStatus(runtime);
-        if (runtime?.install_required) {
-          setView("installer");
-          setStatus("Runtime setup is required");
-          return;
-        }
-      } catch (_) { /* ignore */ }
-      setView("settings");
-      setStatus(`Studio launch error: ${String(e)}`);
-    } finally {
+      setActiveExploit("");
       setBusy(false);
     }
   }
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) =>
     setSettings(prev => prev ? { ...prev, [k]: v } : prev);
+
+  const openExploitPicker = async () => {
+    setShowExploitPicker(true);
+    await loadWeaoExploits();
+  };
+
+  const applySelectedExploit = (title: string) => {
+    set("SelectedExploit", title as Settings["SelectedExploit"]);
+    setStatus(`Selected exploit: ${title}`);
+    setShowExploitPicker(false);
+  };
 
   if (!settings) {
     return (
@@ -432,16 +622,35 @@ export function App() {
   ];
 
   if (isBootstrapping) {
+    const bootstrapTitle = bootstrapStatus.trim() || settings.BootstrapperTitle || "Ruststrap";
     return (
       <div className="bootstrap-overlay">
         <div className="titlebar" data-tauri-drag-region style={{ position: "absolute", top: 0, width: "100%", zIndex: 10 }}>
-          <h1 className="titlebar-title" data-tauri-drag-region>{settings.BootstrapperTitle || "Ruststrap"}</h1>
+          <h1 className="titlebar-title" data-tauri-drag-region>{bootstrapTitle}</h1>
           <div className="titlebar-controls">
-            <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">&#x2715;</button>
+            <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">
+              <X size={14} />
+            </button>
           </div>
         </div>
-        <div style={{ textAlign: "center", maxWidth: 400, zIndex: 1 }}>
+        <div className="bootstrap-content">
+          <div className="bootstrap-brand">
+            {settings.Theme === THEME_VOXLIS_VALUE ? (
+              <div className="bootstrap-brand-wordmark launcher-brand-wordmark" style={VOXLIS_WORDMARK_MASK_STYLE}>
+                <span className="launcher-brand-wordmark-fill" aria-hidden />
+                <img src={voxlisWordmarkOutline} alt="Voxlis" className="launcher-brand-wordmark-outline" />
+              </div>
+            ) : (
+              <div className="bootstrap-brand-ruststrap">
+                <img src="/icon.png" alt="Ruststrap" width={56} height={56} />
+                <span>Ruststrap</span>
+              </div>
+            )}
+          </div>
           <h2 style={{ fontSize: "1rem", fontWeight: 500, marginBottom: 16, color: "var(--text)" }}>{bootstrapStatus}</h2>
+          {activeExploit && (
+            <p className="bootstrap-exploit-meta">Using exploit: {activeExploit}</p>
+          )}
           <div className="bootstrap-progress-bar">
             <div
               className={`bootstrap-progress-fill${progress ? "" : " indeterminate"}`}
@@ -452,6 +661,11 @@ export function App() {
               }
             />
           </div>
+          <p className="bootstrap-progress-meta">
+            {progress && progress.total > 0
+              ? `Step ${Math.min(progress.current, progress.total)} of ${progress.total}`
+              : "Working..."}
+          </p>
           {status.includes("error") && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 20, alignItems: "center" }}>
               <button className="btn-secondary" onClick={() => setIsBootstrapping(false)}>Back to Settings</button>
@@ -464,12 +678,28 @@ export function App() {
 
   if (view === "launcher") {
     return (
-      <LauncherView
-        setView={setView}
-        saveAndLaunch={saveAndLaunch}
-        launchStudio={launchStudio}
-        appVersion={appVersion}
-      />
+      <>
+        <LauncherView
+          setView={setView}
+          saveAndLaunch={saveAndLaunch}
+          appVersion={appVersion}
+          theme={settings.Theme}
+          exploitSelectionEnabled={exploitSelectionEnabled}
+          selectedExploit={selectedExploit}
+          selectedExploitStatus={weaoExploits.find((item) => item.title === selectedExploit) || null}
+          openExploitPicker={() => void openExploitPicker()}
+        />
+        <ExploitPickerModal
+          open={showExploitPicker}
+          loading={weaoLoading}
+          error={weaoError}
+          exploits={weaoExploits}
+          selectedExploit={selectedExploit}
+          onClose={() => setShowExploitPicker(false)}
+          onRefresh={() => void loadWeaoExploits(true)}
+          onSelect={applySelectedExploit}
+        />
+      </>
     );
   }
 
@@ -478,13 +708,23 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
+    <>
+      <div className="app-shell">
       <div className="titlebar" data-tauri-drag-region>
-        <h1 className="titlebar-title" data-tauri-drag-region>Ruststrap Settings</h1>
+        <div className="titlebar-brand" data-tauri-drag-region>
+          <img src="/icon.png" alt="" className="titlebar-brand-icon" width={16} height={16} aria-hidden />
+          <h1 className="titlebar-title" data-tauri-drag-region>Ruststrap Settings</h1>
+        </div>
         <div className="titlebar-controls">
-          <button className="win-btn" onClick={() => void commands.winMinimize()} title="Minimize">&#x2500;</button>
-          <button className="win-btn" onClick={() => void commands.winMaximize()} title="Maximize">&#x25A1;</button>
-          <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">&#x2715;</button>
+          <button className="win-btn" onClick={() => void commands.winMinimize()} title="Minimize">
+            <Minus size={14} />
+          </button>
+          <button className="win-btn" onClick={() => void commands.winMaximize()} title="Maximize">
+            <Square size={12} />
+          </button>
+          <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">
+            <X size={14} />
+          </button>
         </div>
       </div>
       <div className={`app-body ${!sidebarOpen ? "sidebar-collapsed" : ""}`}>
@@ -512,7 +752,19 @@ export function App() {
           </nav>
         </aside>
         <main className="main-content">
-          {tab === "integrations" && <PageIntegrations s={settings} set={set} />}
+          {tab === "integrations" && (
+            <PageIntegrations
+              s={settings}
+              set={set}
+              exploitSelectionEnabled={exploitSelectionEnabled}
+              selectedExploit={selectedExploit}
+              selectedExploitStatus={weaoExploits.find((item) => item.title === selectedExploit) || null}
+              exploitsLoading={weaoLoading}
+              exploitsError={weaoError}
+              onRefreshExploits={() => void loadWeaoExploits(true)}
+              onOpenPicker={() => void openExploitPicker()}
+            />
+          )}
           {tab === "bootstrapper" && <PageBootstrapper s={settings} set={set} />}
           {tab === "region" && <PageRegionSelector s={settings} set={set} />}
           {tab === "deployment" && <PageDeployment s={settings} set={set} />}
@@ -537,24 +789,50 @@ export function App() {
           </button>
         </div>
       </div>
-    </div>
+      </div>
+      <ExploitPickerModal
+        open={showExploitPicker}
+        loading={weaoLoading}
+        error={weaoError}
+        exploits={weaoExploits}
+        selectedExploit={selectedExploit}
+        onClose={() => setShowExploitPicker(false)}
+        onRefresh={() => void loadWeaoExploits(true)}
+        onSelect={applySelectedExploit}
+      />
+    </>
   );
 }
 
 interface LauncherViewProps {
   setView: (view: string) => void;
   saveAndLaunch: () => Promise<void>;
-  launchStudio: () => Promise<void>;
   appVersion: string;
+  theme: number;
+  exploitSelectionEnabled: boolean;
+  selectedExploit: string;
+  selectedExploitStatus: WeaoExploitStatus | null;
+  openExploitPicker: () => void;
 }
 
-function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: LauncherViewProps) {
+function LauncherView({
+  setView,
+  saveAndLaunch,
+  appVersion,
+  theme,
+  exploitSelectionEnabled,
+  selectedExploit,
+  selectedExploitStatus,
+  openExploitPicker,
+}: LauncherViewProps) {
   return (
     <div className="launcher-page">
       <div className="titlebar" data-tauri-drag-region style={{ position: "absolute", top: 0, width: "100%", zIndex: 10 }}>
         <h1 className="titlebar-title" data-tauri-drag-region></h1>
         <div className="titlebar-controls">
-          <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">&#x2715;</button>
+          <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">
+            <X size={14} />
+          </button>
         </div>
       </div>
       <div className="launcher-content" data-tauri-drag-region>
@@ -564,7 +842,14 @@ function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: Laun
               <img src="/icon.png" alt="Ruststrap" width={64} height={64} />
             </div>
             <div className="launcher-brand-text">
-              <h2>Ruststrap</h2>
+              {theme === THEME_VOXLIS_VALUE ? (
+                <div className="launcher-brand-wordmark" style={VOXLIS_WORDMARK_MASK_STYLE}>
+                  <span className="launcher-brand-wordmark-fill" aria-hidden />
+                  <img src={voxlisWordmarkOutline} alt="Voxlis" className="launcher-brand-wordmark-outline" />
+                </div>
+              ) : (
+                <h2>Ruststrap</h2>
+              )}
               <span>Version {appVersion}</span>
             </div>
           </div>
@@ -573,7 +858,13 @@ function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: Laun
               <Info size={16} />
               <span>Installer Tool</span>
             </a>
-            <a href="https://discord.gg/macrostack" target="_blank" rel="noopener noreferrer"> {/*i need to finish the wiki but we got discord*/}
+            <a
+              href={RUSTSTRAP_DISCORD_URL}
+              onClick={(e) => {
+                e.preventDefault();
+                openExternalLink(RUSTSTRAP_DISCORD_URL);
+              }}
+            >
               <MessageSquare size={16} />
               <span>Join our Discord</span>
             </a>
@@ -584,22 +875,29 @@ function LauncherView({ setView, saveAndLaunch, launchStudio, appVersion }: Laun
             <Gamepad2 size={24} />
             <span>Launch Roblox</span>
           </button>
-          <div className="action-row">
-            <button className="action-card secondary" onClick={() => setView("settings")}>
-              <Settings2 size={20} />
-              <span>Settings</span>
+          {exploitSelectionEnabled && (
+            <button className="action-card secondary action-card-exploit" onClick={openExploitPicker}>
+              <ExploitLogo exploit={selectedExploitStatus || { title: selectedExploit || "Unknown exploit" }} size={24} />
+              <div className="action-card-text">
+                <strong>{selectedExploit || "Select Exploit"}</strong>
+                <span>
+                  {selectedExploit
+                    ? "Used in launch notifications"
+                    : "Pick what exploit you're using"}
+                </span>
+              </div>
             </button>
-            <button className="action-card secondary" onClick={() => void launchStudio()}>
-              <Blocks size={20} />
-              <span>Studio</span>
-            </button>
-          </div>
+          )}
+          <button className="action-card secondary" onClick={() => setView("settings")}>
+            <Settings2 size={20} />
+            <span>Settings</span>
+          </button>
           <div className="launcher-divider" />
-          <button className="action-card tertiary" onClick={() => window.open("https://github.com/Ruststrap/Ruststrap/wiki")}>
+          <button className="action-card tertiary" onClick={() => openExternalLink(RUSTSTRAP_GITHUB_URL)}>
             <BookOpen size={20} />
             <div className="action-card-text">
-              <strong>Having an issue?</strong>
-              <span>See the Wiki for help</span>
+              <strong>View source</strong>
+              <span>Open Ruststrap on GitHub</span>
             </div>
             <ExternalLink size={14} style={{ marginLeft: "auto", opacity: 0.5 }} />
           </button>
@@ -705,7 +1003,9 @@ function InstallerView({ setView, settings, set }: InstallerViewProps) {
       <div className="titlebar" data-tauri-drag-region>
         <h1 className="titlebar-title" data-tauri-drag-region>Ruststrap Installer</h1>
         <div className="titlebar-controls">
-          <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">&#x2715;</button>
+          <button className="win-btn win-close" onClick={() => void commands.winClose()} title="Close">
+            <X size={14} />
+          </button>
         </div>
       </div>
 
@@ -869,6 +1169,149 @@ function WarningBanner({ children }: { children: React.ReactNode }) {
   return <div className="warning-banner">{children}</div>;
 }
 
+function ExploitLogo({
+  exploit,
+  size = 20,
+}: {
+  exploit: Pick<WeaoExploitStatus, "title" | "exploit_type">;
+  size?: number;
+}) {
+  const candidates = useMemo(
+    () => exploitLogoCandidates(exploit),
+    [exploit.title, exploit.exploit_type]
+  );
+  const [candidateIndex, setCandidateIndex] = useState(0);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [candidates]);
+
+  if (candidateIndex >= candidates.length) {
+    return (
+      <div
+        className={`exploit-logo-fallback${size <= 16 ? " small" : ""}`}
+        style={{ width: size, height: size }}
+        aria-hidden
+      >
+        {exploit.title.charAt(0).toUpperCase() || "?"}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={candidates[candidateIndex]}
+      alt={exploit.title}
+      width={size}
+      height={size}
+      className="exploit-logo"
+      onError={() => setCandidateIndex((value) => value + 1)}
+      loading="lazy"
+    />
+  );
+}
+
+type ExploitPickerModalProps = {
+  open: boolean;
+  loading: boolean;
+  error: string;
+  exploits: WeaoExploitStatus[];
+  selectedExploit: string;
+  onClose: () => void;
+  onRefresh: () => void;
+  onSelect: (title: string) => void;
+};
+
+function ExploitPickerModal({
+  open,
+  loading,
+  error,
+  exploits,
+  selectedExploit,
+  onClose,
+  onRefresh,
+  onSelect,
+}: ExploitPickerModalProps) {
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+    }
+  }, [open]);
+
+  if (!open) {
+    return null;
+  }
+
+  const needle = query.trim().toLowerCase();
+  const filtered = needle
+    ? exploits.filter((item) => item.title.toLowerCase().includes(needle))
+    : exploits;
+
+  return (
+    <div className="overlay-scrim" onClick={onClose}>
+      <div className="exploit-picker-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="exploit-picker-header">
+          <div>
+            <h3>Select Exploit</h3>
+            <p>Choose the exploit shown when Roblox launches.</p>
+          </div>
+          <button className="btn-secondary btn-sm" onClick={onClose}>
+            <X size={13} />
+            <span>Close</span>
+          </button>
+        </div>
+        <div className="exploit-picker-toolbar">
+          <label className="exploit-picker-search">
+            <Search size={14} />
+            <input
+              type="text"
+              placeholder="Search exploit"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <button className="btn-secondary btn-sm" onClick={onRefresh} disabled={loading}>
+            <RefreshCw size={13} />
+            <span>{loading ? "Loading..." : "Refresh"}</span>
+          </button>
+        </div>
+        {error && <div className="exploit-picker-error">{error}</div>}
+        <div className="exploit-picker-list">
+          {filtered.map((item) => {
+            const selected = selectedExploit === item.title;
+            return (
+              <button
+                key={item.title}
+                className={`exploit-picker-item${selected ? " selected" : ""}`}
+                onClick={() => onSelect(item.title)}
+              >
+                <ExploitLogo exploit={item} size={22} />
+                <div className="exploit-picker-item-info">
+                  <strong>{item.title}</strong>
+                  <span>
+                    {item.version ? `v${item.version}` : "Version unknown"} ·{" "}
+                    {item.update_status ? "Updated" : "Not updated"}
+                  </span>
+                </div>
+                {item.detected ? (
+                  <span className="exploit-picker-tag danger">Detected</span>
+                ) : (
+                  <span className="exploit-picker-tag safe">Undetected</span>
+                )}
+              </button>
+            );
+          })}
+          {!loading && filtered.length === 0 && (
+            <div className="exploit-picker-empty">No exploits match your search.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Expander({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
@@ -885,7 +1328,27 @@ function Expander({ title, desc, children }: { title: string; desc?: string; chi
   );
 }
 
-function PageIntegrations({ s, set }: SettingsProps) {
+type PageIntegrationsProps = SettingsProps & {
+  exploitSelectionEnabled: boolean;
+  selectedExploit: string;
+  selectedExploitStatus: WeaoExploitStatus | null;
+  exploitsLoading: boolean;
+  exploitsError: string;
+  onRefreshExploits: () => void;
+  onOpenPicker: () => void;
+};
+
+function PageIntegrations({
+  s,
+  set,
+  exploitSelectionEnabled,
+  selectedExploit,
+  selectedExploitStatus,
+  exploitsLoading,
+  exploitsError,
+  onRefreshExploits,
+  onOpenPicker,
+}: PageIntegrationsProps) {
   const [selIdx, setSelIdx] = useState(-1);
   const integrations: CustomIntegration[] = (s.CustomIntegrations || []);
 
@@ -978,6 +1441,54 @@ function PageIntegrations({ s, set }: SettingsProps) {
         <Opt header="Show game button" desc="Add button to visit game page from Discord." disabled={!s.StudioRPC}>
           <Toggle checked={s.StudioGameButton} onChange={v => set("StudioGameButton", v)} disabled={!s.StudioRPC} />
         </Opt>
+      </Section>
+
+      <Section title="WEAO Exploit Selection" desc="Optional launch-time exploit picker with logos from your public assets.">
+        <Opt header="Enable exploit selection" desc="Require an exploit selection before launching Roblox.">
+          <Toggle
+            checked={exploitSelectionEnabled}
+            onChange={(value) => {
+              set("EnableExploitSelection", value as Settings["EnableExploitSelection"]);
+              if (value) {
+                onRefreshExploits();
+              }
+            }}
+          />
+        </Opt>
+        <Opt
+          header="Selected exploit"
+          desc="Used for launch status and notifications."
+          disabled={!exploitSelectionEnabled}
+        >
+          <div className="exploit-select-inline">
+            <button
+              className="btn-secondary btn-sm exploit-select-preview"
+              onClick={onOpenPicker}
+              disabled={!exploitSelectionEnabled}
+            >
+              {selectedExploitStatus ? (
+                <ExploitLogo exploit={selectedExploitStatus} size={16} />
+              ) : (
+                <div className="exploit-logo-fallback small" aria-hidden>
+                  ?
+                </div>
+              )}
+              <span>{selectedExploit || "Select exploit"}</span>
+            </button>
+            <button
+              className="btn-secondary btn-sm"
+              onClick={onRefreshExploits}
+              disabled={!exploitSelectionEnabled || exploitsLoading}
+              title="Refresh exploit list"
+            >
+              <RefreshCw size={13} />
+              <span>Refresh</span>
+            </button>
+          </div>
+        </Opt>
+        {exploitSelectionEnabled && exploitsError && (
+          <div className="exploit-inline-error">{exploitsError}</div>
+        )}
       </Section>
 
       <Section title="Roblox Media" desc="Block Roblox's built-in screenshot and recording features.">
@@ -1585,7 +2096,12 @@ function PageFastFlags({ flags, setFlags, s, set }: { flags: Record<string, stri
 }
 
 function PageAppearance({ s, set }: SettingsProps) {
-  const themes = [{ v: 0, l: "Dark (Default)" }, { v: 1, l: "Light" }, { v: 2, l: "System" }];
+  const themes = [
+    { v: THEME_DARK_VALUE, l: "Dark (Default)" },
+    { v: THEME_LIGHT_VALUE, l: "Light" },
+    { v: THEME_SYSTEM_VALUE, l: "System" },
+    { v: THEME_VOXLIS_VALUE, l: "Voxlis" },
+  ];
   const bootstrapperStyles = [{ v: 0, l: "Progress Dialog" }, { v: 1, l: "Legacy" }, { v: 2, l: "Compact" }];
   const bootstrapperIcons = [{ v: 0, l: "Default" }, { v: 1, l: "Classic" }, { v: 2, l: "Custom" }];
   const robloxIcons = [{ v: 0, l: "Default" }, { v: 1, l: "Classic 2006" }, { v: 2, l: "Classic 2011" }, { v: 3, l: "Custom" }];
@@ -1680,14 +2196,11 @@ function PageAbout() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn-secondary" onClick={() => window.open("https://github.com/Ruststrap/Ruststrap")}>
+            <button className="btn-secondary" onClick={() => openExternalLink(RUSTSTRAP_GITHUB_URL)}>
               GitHub
             </button>
-            <button className="btn-secondary" onClick={() => window.open("https://discord.gg/KdR9vpRcUN")}>
+            <button className="btn-secondary" onClick={() => openExternalLink(RUSTSTRAP_DISCORD_URL)}>
               Discord
-            </button>
-            <button className="btn-secondary" onClick={() => window.open("https://github.com/Ruststrap/Ruststrap/wiki")}>
-              Wiki
             </button>
           </div>
         </div>
