@@ -6,6 +6,7 @@ https://rorvzzz.cool
 
 */
 #![forbid(unsafe_code)]
+#![allow(non_snake_case)]
 
 mod events;
 mod mutex;
@@ -19,7 +20,10 @@ pub use anyhow::{anyhow, Result};
 pub use events::{EventBackend, EventHook, WindowsEventBackend};
 pub use mutex::{MutexBackend, NamedMutex, WindowsMutexBackend};
 pub use process::{ProcessBackend, ProcessHandle, ProcessOptions, WindowsProcessBackend};
-pub use registry::{RegistryBackend, RegistryHive, RegistryValue, WindowsRegistryBackend};
+pub use registry::{
+    register_client_location, register_player_protocol, register_studio_protocol,
+    unregister_protocol, RegistryBackend, RegistryHive, RegistryValue, WindowsRegistryBackend,
+};
 pub use shell::{ShellBackend, WindowsShellBackend};
 pub use shortcuts::{ShortcutBackend, ShortcutRequest, WindowsShortcutBackend};
 

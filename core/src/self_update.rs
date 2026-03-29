@@ -23,7 +23,6 @@ struct GitHubRelease {
 
 #[derive(Debug, Deserialize)]
 struct GitHubAsset {
-    name: String,
     browser_download_url: String,
 }
 

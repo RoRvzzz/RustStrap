@@ -693,56 +693,6 @@ fn normalize_relative_path(value: &str) -> String {
         .to_string()
 }
 
-fn ps_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
-}
-
-fn run_ps(script: &str) -> Result<String> {
-    let mut command = Command::new("powershell");
-    configure_hidden(&mut command);
-    let output = command
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            script,
-        ])
-        .output()
-        .map_err(|err| DomainError::Process(format!("powershell invocation failed: {err}")))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(DomainError::Network(if stderr.is_empty() {
-            "powershell command failed".to_string()
-        } else {
-            stderr
-        }));
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
-fn parse_http_output(stdout: &str) -> Result<(u16, String)> {
-    let mut lines = stdout.lines();
-    let first = lines.next().unwrap_or_default().trim();
-    if let Some(message) = first.strip_prefix("__ERROR__:") {
-        return Err(DomainError::Network(message.trim().to_string()));
-    }
-    let Some(status_raw) = first.strip_prefix("__STATUS__:") else {
-        return Err(DomainError::Network(format!(
-            "unexpected response output: {first}"
-        )));
-    };
-    let status = status_raw
-        .trim()
-        .parse::<u16>()
-        .map_err(|err| DomainError::Network(format!("invalid status code: {err}")))?;
-    let body = lines.collect::<Vec<_>>().join("\n");
-    Ok((status, body))
-}
-
 fn http_get(url: &str, headers: &HashMap<String, String>) -> Result<(u16, String)> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))

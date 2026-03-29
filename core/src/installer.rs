@@ -102,7 +102,7 @@ pub fn do_install(
     current_exe: &Path,
     create_desktop_shortcut: bool,
     create_start_menu_shortcut: bool,
-    import_from_Ruststrap: bool,
+    import_from_ruststrap: bool,
 ) -> Result<()> {
     fs::create_dir_all(install_location)?;
 
@@ -149,10 +149,10 @@ pub fn do_install(
     }
 
     // import settings from Ruststrap
-    if import_from_Ruststrap {
-        let Ruststrap_dir = Ruststrap_install_dir();
-        if Ruststrap_dir.exists() {
-            import_settings_from_Ruststrap(&Ruststrap_dir, install_location)?;
+    if import_from_ruststrap {
+        let ruststrap_dir = ruststrap_install_dir();
+        if ruststrap_dir.exists() {
+            import_settings_from_ruststrap(&ruststrap_dir, install_location)?;
         }
     }
 
@@ -255,9 +255,9 @@ fn do_uninstall_internal(
 }
 
 /// import settings, modifications, and custom themes from a Ruststrap installation.
-pub fn import_settings_from_Ruststrap(Ruststrap_dir: &Path, install_dir: &Path) -> Result<()> {
+pub fn import_settings_from_ruststrap(ruststrap_dir: &Path, install_dir: &Path) -> Result<()> {
     for file_name in FILES_FOR_IMPORTING {
-        let source = Ruststrap_dir.join(file_name);
+        let source = ruststrap_dir.join(file_name);
         if !source.exists() {
             continue;
         }
@@ -655,7 +655,7 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-fn Ruststrap_install_dir() -> PathBuf {
+fn ruststrap_install_dir() -> PathBuf {
     let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| ".".to_string());
     PathBuf::from(local_app_data).join("Ruststrap")
 }

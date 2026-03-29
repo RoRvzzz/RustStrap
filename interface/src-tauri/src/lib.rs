@@ -5,6 +5,8 @@ Copyright (c) 2026-present, RoRvzzz. All rights reserved.
 https://rorvzzz.cool
 
 */
+#![allow(non_snake_case)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};

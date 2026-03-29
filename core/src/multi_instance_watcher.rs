@@ -27,15 +27,6 @@ pub fn run() {
         fn WaitForSingleObject(handle: isize, millis: u32) -> u32;
         fn ReleaseMutex(handle: isize) -> i32;
         fn CloseHandle(handle: isize) -> i32;
-
-        // named events for init signaling
-        fn CreateEventW(
-            attrs: *const std::ffi::c_void,
-            manual_reset: i32,
-            initial_state: i32,
-            name: *const u16,
-        ) -> isize;
-        fn SetEvent(handle: isize) -> i32;
     }
 
     let wide_mutex: Vec<u16> = mutex_name.encode_utf16().collect();

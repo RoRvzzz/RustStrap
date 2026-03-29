@@ -17,8 +17,8 @@ const MAX_FILES_PER_DIR: usize = 200;
 /// dirs
 #[derive(Debug, Clone)]
 pub struct CleanerConfig {
-    pub Ruststrap_logs: Option<PathBuf>,
-    pub Ruststrap_cache: Option<PathBuf>,
+    pub ruststrap_logs: Option<PathBuf>,
+    pub ruststrap_cache: Option<PathBuf>,
     pub roblox_logs: Option<PathBuf>,
     pub roblox_cache: Option<PathBuf>,
 }
@@ -28,8 +28,8 @@ impl CleanerConfig {
     pub fn from_base_dir(base_dir: &Path) -> Self {
         let local_app_data = std::env::var("LOCALAPPDATA").unwrap_or_default();
         Self {
-            Ruststrap_logs: Some(base_dir.join("Logs")),
-            Ruststrap_cache: Some(base_dir.join("Downloads")),
+            ruststrap_logs: Some(base_dir.join("Logs")),
+            ruststrap_cache: Some(base_dir.join("Downloads")),
             roblox_logs: if local_app_data.is_empty() {
                 None
             } else {
@@ -81,8 +81,8 @@ pub fn run_cleaner(
     let mut report = CleanerReport::default();
 
     let dirs: Vec<(&str, &Option<PathBuf>)> = vec![
-        ("RuststrapLogs", &config.Ruststrap_logs),
-        ("RuststrapCache", &config.Ruststrap_cache),
+        ("RuststrapLogs", &config.ruststrap_logs),
+        ("RuststrapCache", &config.ruststrap_cache),
         ("RobloxLogs", &config.roblox_logs),
         ("RobloxCache", &config.roblox_cache),
     ];
@@ -194,13 +194,12 @@ fn collect_files_recursive(dir: &Path) -> std::io::Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
 
     #[test]
     fn cleaner_never_skips() {
         let config = CleanerConfig {
-            Ruststrap_logs: None,
-            Ruststrap_cache: None,
+            ruststrap_logs: None,
+            ruststrap_cache: None,
             roblox_logs: None,
             roblox_cache: None,
         };

@@ -50,9 +50,6 @@ pub fn preset_paths() -> HashMap<&'static str, &'static str> {
     );
     m
 }
-
-const USER_SETTINGS_XPATH: &str = "//Item[@class='UserGameSettings']/Properties";
-
 impl GlobalSettingsManager {
     pub fn new(roblox_dir: &Path) -> Self {
         Self {

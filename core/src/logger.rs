@@ -135,7 +135,6 @@ fn chrono_utc_filename() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn logger_buffered_write() {
