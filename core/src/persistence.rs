@@ -289,6 +289,10 @@ fn default_process_priority() -> i32 {
 pub struct SettingsFileCompat {
     #[serde(rename = "AllowCookieAccess", alias = "allow_cookie_access")]
     pub allow_cookie_access: bool,
+    #[serde(rename = "CookieAutoApply", alias = "cookie_auto_apply", default)]
+    pub cookie_auto_apply: bool,
+    #[serde(rename = "CookieRoblosecurity", alias = "cookie_roblosecurity", default)]
+    pub cookie_roblosecurity: String,
     #[serde(rename = "BootstrapperStyle", alias = "bootstrapper_style")]
     pub bootstrapper_style: BootstrapperStyleCompat,
     #[serde(rename = "BootstrapperIcon", alias = "bootstrapper_icon")]
@@ -495,6 +499,8 @@ impl Default for SettingsFileCompat {
     fn default() -> Self {
         Self {
             allow_cookie_access: false,
+            cookie_auto_apply: false,
+            cookie_roblosecurity: String::new(),
             bootstrapper_style: BootstrapperStyleCompat::FluentAeroDialog,
             bootstrapper_icon: 0,
             bootstrapper_title: "Ruststrap".to_string(),

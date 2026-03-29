@@ -847,6 +847,20 @@ async fn get_cookie_state() -> Result<String, String> {
     Ok(state_str.to_string())
 }
 
+#[tauri::command]
+async fn capture_current_cookie() -> Result<serde_json::Value, String> {
+    let mut mgr = CookiesManager::new(true);
+    mgr.load_cookies().map_err(|err| err.to_string())?;
+    let cookie = mgr
+        .cookie_value()
+        .ok_or_else(|| "No valid Roblox cookie found in LocalStorage.".to_string())?;
+
+    Ok(serde_json::json!({
+        "cookie": cookie,
+        "user": mgr.authenticated_user(),
+    }))
+}
+
 // section: phase 2+ commands
 
 #[tauri::command]
@@ -1215,6 +1229,7 @@ pub fn run() {
             do_full_install,
             do_full_uninstall,
             get_cookie_state,
+            capture_current_cookie,
             parse_join_url,
             run_cleaner_cmd,
             query_server_location,

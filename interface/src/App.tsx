@@ -37,6 +37,8 @@ import voxlisWordmarkOutline from "./themes/voxlis.png";
 
 interface Settings {
   AllowCookieAccess: boolean;
+  CookieAutoApply: boolean;
+  CookieRoblosecurity: string;
   BootstrapperStyle: number;
   BootstrapperIcon: number;
   BootstrapperTitle: string;
@@ -202,6 +204,9 @@ const EXPLOIT_LOGO_EXTENSIONS = ["png", "webp", "jpg", "jpeg", "svg"] as const;
 function normalizeSettingsForUi(raw: Settings): Settings {
   return {
     ...raw,
+    CookieAutoApply: Boolean(raw.CookieAutoApply),
+    CookieRoblosecurity:
+      typeof raw.CookieRoblosecurity === "string" ? raw.CookieRoblosecurity : "",
     EnableExploitSelection: Boolean(raw.EnableExploitSelection),
     SelectedExploit:
       typeof raw.SelectedExploit === "string" ? raw.SelectedExploit : "",
@@ -604,11 +609,16 @@ export function App() {
 
       setActiveExploit(launchExploit);
       setActiveDowngradeVersion(downgradeVersion);
+      const useCookieAccount =
+        loadedSettings.AllowCookieAccess &&
+        loadedSettings.CookieAutoApply &&
+        typeof loadedSettings.CookieRoblosecurity === "string" &&
+        loadedSettings.CookieRoblosecurity.trim().length > 0;
       startBootstrapOverlay(
         mode === "player"
           ? launchExploit
-            ? `Starting Roblox with ${launchExploit}...`
-            : "Starting Roblox..."
+            ? `Starting Roblox with ${launchExploit}${useCookieAccount ? " (saved account cookie)" : ""}...`
+            : `Starting Roblox${useCookieAccount ? " (saved account cookie)" : ""}...`
           : "Starting Studio..."
       );
       try {
@@ -705,10 +715,15 @@ export function App() {
       try { await commands.applyModifications(); } catch (_) { /* ignore */ }
       setActiveExploit(launchExploit);
       setActiveDowngradeVersion(downgradeVersion);
+      const useCookieAccount =
+        settingsForLaunch.AllowCookieAccess &&
+        settingsForLaunch.CookieAutoApply &&
+        typeof settingsForLaunch.CookieRoblosecurity === "string" &&
+        settingsForLaunch.CookieRoblosecurity.trim().length > 0;
       startBootstrapOverlay(
         launchExploit
-          ? `Starting Roblox with ${launchExploit}...`
-          : "Starting Roblox..."
+          ? `Starting Roblox with ${launchExploit}${useCookieAccount ? " (saved account cookie)" : ""}...`
+          : `Starting Roblox${useCookieAccount ? " (saved account cookie)" : ""}...`
       );
       await commands.launchPlayer();
       await commands.winClose();
@@ -1730,6 +1745,29 @@ function PageIntegrations({
 }
 
 function PageBootstrapper({ s, set }: SettingsProps) {
+  const [cookieCaptureMessage, setCookieCaptureMessage] = useState("");
+
+  const captureCookieFromCurrentSession = async () => {
+    try {
+      const captured = await commands.captureCurrentCookie();
+      const cookieValue = (captured?.cookie || "").trim();
+      if (!cookieValue) {
+        setCookieCaptureMessage("No valid Roblox cookie was found.");
+        return;
+      }
+
+      set("CookieRoblosecurity", cookieValue as Settings["CookieRoblosecurity"]);
+      set("CookieAutoApply", true as Settings["CookieAutoApply"]);
+      setCookieCaptureMessage(
+        captured?.user?.name
+          ? `Captured cookie for ${captured.user.displayName || captured.user.name} (@${captured.user.name}).`
+          : "Captured cookie from current Roblox session."
+      );
+    } catch (error: unknown) {
+      setCookieCaptureMessage(`Cookie capture failed: ${String(error)}`);
+    }
+  };
+
   return (
     <div className="page">
       <hgroup className="page-header">
@@ -1816,6 +1854,57 @@ function PageBootstrapper({ s, set }: SettingsProps) {
       <Section title="Experimental" desc="These settings may or may not work as intended.">
         <Opt header="Allow Ruststrap cookie access" desc="Provide access to Roblox APIs using your auth cookie.">
           <Toggle checked={s.AllowCookieAccess} onChange={v => set("AllowCookieAccess", v)} />
+        </Opt>
+        <Opt
+          header="Auto-apply account cookie"
+          desc="Rewrite Roblox session cookie on launch so VPN changes don't switch/log out your account."
+          disabled={!s.AllowCookieAccess}
+        >
+          <Toggle
+            checked={Boolean(s.CookieAutoApply)}
+            onChange={v => set("CookieAutoApply", v)}
+            disabled={!s.AllowCookieAccess}
+          />
+        </Opt>
+        <Opt
+          header="Saved ROBLOSECURITY"
+          desc="Paste your cookie once or capture from current Roblox session."
+          disabled={!s.AllowCookieAccess}
+        >
+          <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+            <input
+              type="password"
+              value={typeof s.CookieRoblosecurity === "string" ? s.CookieRoblosecurity : ""}
+              onChange={e => set("CookieRoblosecurity", e.target.value as Settings["CookieRoblosecurity"])}
+              placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."
+              style={{ minWidth: 320, width: "min(560px, 100%)" }}
+              disabled={!s.AllowCookieAccess}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", width: "100%", flexWrap: "wrap" }}>
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => void captureCookieFromCurrentSession()}
+                disabled={!s.AllowCookieAccess}
+              >
+                Capture current session
+              </button>
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => {
+                  set("CookieRoblosecurity", "" as Settings["CookieRoblosecurity"]);
+                  setCookieCaptureMessage("Saved cookie cleared.");
+                }}
+                disabled={!s.AllowCookieAccess || !(s.CookieRoblosecurity || "").trim()}
+              >
+                Clear
+              </button>
+            </div>
+            {cookieCaptureMessage && (
+              <span style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "right", width: "100%" }}>
+                {cookieCaptureMessage}
+              </span>
+            )}
+          </div>
         </Opt>
         <Opt header="Enable BetterMatchmaking" desc="Let Ruststrap decide which servers you join.">
           <Toggle checked={s.EnableBetterMatchmaking} onChange={v => set("EnableBetterMatchmaking", v)} />

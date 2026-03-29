@@ -85,6 +85,15 @@ interface WeaoSuncData {
   [key: string]: unknown;
 }
 
+interface CapturedCookie {
+  cookie: string;
+  user?: {
+    id: number;
+    name: string;
+    displayName: string;
+  } | null;
+}
+
 export const commands = {
   // setttings
   async getSettings(): Promise<Settings> {
@@ -174,6 +183,10 @@ export const commands = {
 
   async weaoSuncData(scrap: string, key: string): Promise<WeaoSuncData> {
     return invoke<WeaoSuncData>("weao_sunc_data", { scrap, key });
+  },
+
+  async captureCurrentCookie(): Promise<CapturedCookie> {
+    return invoke<CapturedCookie>("capture_current_cookie");
   },
 
   // Region Selector

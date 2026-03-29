@@ -13,6 +13,7 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
+use crate::cookies::{normalize_roblosecurity_cookie, persist_roblosecurity_cookie};
 use crate::errors::{DomainError, Result};
 use crate::launch_flags::LaunchMode;
 use crate::orchestrator::BootstrapRuntime;
@@ -24,6 +25,19 @@ use crate::process_utils::configure_hidden;
 
 const DEFAULT_CHANNEL: &str = "production";
 const BAD_CHANNEL_STATUSES: [u16; 3] = [401, 403, 404];
+
+fn configured_roblosecurity_cookie(settings: &SettingsFileCompat) -> Option<String> {
+    if !settings.allow_cookie_access {
+        return None;
+    }
+
+    let normalized = normalize_roblosecurity_cookie(&settings.cookie_roblosecurity);
+    if normalized.trim().is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct BootstrapRuntimeConfig {
@@ -1056,8 +1070,17 @@ impl FilesystemBootstrapRuntime {
             }
         }
 
-        let cookie = std::env::var("Ruststrap_ROBLOSECURITY").ok();
-        let Some(cookie) = cookie.filter(|value| !value.trim().is_empty()) else {
+        let env_cookie = std::env::var("Ruststrap_ROBLOSECURITY")
+            .ok()
+            .and_then(|value| {
+                let normalized = normalize_roblosecurity_cookie(&value);
+                if normalized.trim().is_empty() {
+                    None
+                } else {
+                    Some(normalized)
+                }
+            });
+        let Some(cookie) = env_cookie.or_else(|| configured_roblosecurity_cookie(settings)) else {
             return Ok(None);
         };
         let mut headers = HashMap::new();
@@ -1318,6 +1341,16 @@ impl BootstrapRuntime for FilesystemBootstrapRuntime {
 
     fn launch_client(&self, mode: LaunchMode, launch_args: &str) -> Result<u32> {
         let settings = self.load_settings()?;
+
+        if settings.cookie_auto_apply {
+            if let Some(cookie) = configured_roblosecurity_cookie(&settings) {
+                if let Err(error) = persist_roblosecurity_cookie(&cookie) {
+                    log::warn!("failed to apply configured Roblox cookie before launch: {error}");
+                } else {
+                    std::env::set_var("Ruststrap_ROBLOSECURITY", &cookie);
+                }
+            }
+        }
 
         // record in state
         let mut state = self.load_state()?;

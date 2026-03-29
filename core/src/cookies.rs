@@ -26,7 +26,7 @@ pub enum CookieState {
 }
 
 /// represents the Roblox cookies file format.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct RobloxCookies {
     #[serde(rename = "CookiesVersion", alias = "Version")]
     version: String,
@@ -48,6 +48,7 @@ pub struct AuthenticatedUser {
 pub struct CookiesManager {
     state: CookieState,
     auth_cookie: Option<String>,
+    auth_user: Option<AuthenticatedUser>,
     cookie_path: PathBuf,
     allow_access: bool,
 }
@@ -62,6 +63,7 @@ impl CookiesManager {
         Self {
             state: CookieState::Unknown,
             auth_cookie: None,
+            auth_user: None,
             cookie_path,
             allow_access,
         }
@@ -96,24 +98,28 @@ impl CookiesManager {
         match self.try_load_and_decrypt() {
             Ok(cookie) => {
                 self.auth_cookie = Some(cookie);
-                // validate the cookie
-                match self.validate_cookie() {
-                    Ok(true) => {
+                // validate the cookie and resolve user profile
+                match self.fetch_authenticated_user() {
+                    Ok(Some(user)) => {
                         self.state = CookieState::Success;
+                        self.auth_user = Some(user);
                     }
-                    Ok(false) => {
+                    Ok(None) => {
                         self.state = CookieState::Invalid;
                         self.auth_cookie = None;
+                        self.auth_user = None;
                     }
                     Err(error) => {
                         self.state = classify_cookie_validation_error(&error);
                         self.auth_cookie = None;
+                        self.auth_user = None;
                     }
                 }
             }
             Err(error) => {
                 self.state = classify_cookie_load_error(&error);
                 self.auth_cookie = None;
+                self.auth_user = None;
             }
         }
 
@@ -149,12 +155,25 @@ impl CookiesManager {
         Ok(captures[1].to_string())
     }
 
-    fn validate_cookie(&self) -> Result<bool> {
+    fn fetch_authenticated_user(&self) -> Result<Option<AuthenticatedUser>> {
         let cookie = match &self.auth_cookie {
             Some(c) => c,
-            None => return Ok(false),
+            None => return Ok(None),
         };
+        fetch_authenticated_user_for_cookie(cookie)
+    }
 
+    pub fn authenticated_user(&self) -> Option<&AuthenticatedUser> {
+        self.auth_user.as_ref()
+    }
+
+    /// get the raw cookie value (for passing to other systems).
+    pub fn cookie_value(&self) -> Option<&str> {
+        self.auth_cookie.as_deref()
+    }
+}
+
+fn fetch_authenticated_user_for_cookie(cookie: &str) -> Result<Option<AuthenticatedUser>> {
         let client = reqwest::blocking::Client::new();
         let response = client
             .get("https://users.roblox.com/v1/users/authenticated")
@@ -163,7 +182,7 @@ impl CookiesManager {
             .map_err(|e| DomainError::Network(format!("auth validation failed: {e}")))?;
 
         if !response.status().is_success() {
-            return Ok(false);
+            return Ok(None);
         }
 
         let body = response
@@ -173,9 +192,14 @@ impl CookiesManager {
         let user: AuthenticatedUser = serde_json::from_str(&body)
             .map_err(|e| DomainError::Serialization(format!("auth user parse failed: {e}")))?;
 
-        Ok(user.id != 0)
-    }
+        if user.id == 0 {
+            return Ok(None);
+        }
 
+        Ok(Some(user))
+}
+
+impl CookiesManager {
     /// make an authenticated GET request to a Roblox API endpoint.
     pub fn auth_get(&self, url: &str) -> Result<(u16, String)> {
         let cookie = self
@@ -232,11 +256,61 @@ impl CookiesManager {
 
         Ok((status, resp_body))
     }
+}
 
-    /// get the raw cookie value (for passing to other systems).
-    pub fn cookie_value(&self) -> Option<&str> {
-        self.auth_cookie.as_deref()
+/// normalize any user-provided cookie representation to a raw ROBLOSECURITY value.
+pub fn normalize_roblosecurity_cookie(raw: &str) -> String {
+    let trimmed = raw.trim().trim_matches('"').trim_matches('\'');
+    if trimmed.is_empty() {
+        return String::new();
     }
+
+    let lower = trimmed.to_ascii_lowercase();
+    let mut token = trimmed;
+
+    if let Some(index) = lower.find(".roblosecurity=") {
+        token = &trimmed[index + ".ROBLOSECURITY=".len()..];
+    } else if let Some(index) = lower.find("roblosecurity=") {
+        token = &trimmed[index + "ROBLOSECURITY=".len()..];
+    }
+
+    if let Some(end) = token.find(';') {
+        token = &token[..end];
+    }
+
+    token.trim().trim_matches('"').trim_matches('\'').to_string()
+}
+
+/// persist a Roblox auth cookie into `%LOCALAPPDATA%\\Roblox\\LocalStorage\\RobloxCookies.dat`.
+pub fn persist_roblosecurity_cookie(raw: &str) -> Result<()> {
+    let cookie = normalize_roblosecurity_cookie(raw);
+    if cookie.is_empty() {
+        return Err(DomainError::Serialization(
+            "ROBLOSECURITY cookie is empty".to_string(),
+        ));
+    }
+
+    let local_app_data = std::env::var("LOCALAPPDATA")
+        .map_err(|_| DomainError::Process("LOCALAPPDATA is not available".to_string()))?;
+    let cookie_path = PathBuf::from(local_app_data)
+        .join("Roblox")
+        .join("LocalStorage")
+        .join("RobloxCookies.dat");
+    if let Some(parent) = cookie_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    // Netscape-style cookie line; Roblox only needs ROBLOSECURITY present.
+    let cookies_data = format!(".roblox.com\tTRUE\t/\tFALSE\t0\t.ROBLOSECURITY\t{cookie};\n");
+    let encrypted_data = dpapi_protect(cookies_data.as_bytes())?;
+    let payload = RobloxCookies {
+        version: "1".to_string(),
+        cookies: base64_encode(&encrypted_data),
+    };
+    let json = serde_json::to_string_pretty(&payload)
+        .map_err(|e| DomainError::Serialization(format!("cookies serialize failed: {e}")))?;
+    fs::write(cookie_path, json)?;
+    Ok(())
 }
 
 fn classify_cookie_load_error(error: &DomainError) -> CookieState {
@@ -293,6 +367,78 @@ fn base64_decode(input: &str) -> Result<Vec<u8>> {
     Ok(decoded)
 }
 
+fn base64_encode(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = String::with_capacity(input.len().div_ceil(3) * 4);
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = if chunk.len() > 1 { chunk[1] } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] } else { 0 };
+        let triple = ((b0 as u32) << 16) | ((b1 as u32) << 8) | (b2 as u32);
+
+        let i0 = ((triple >> 18) & 0x3f) as usize;
+        let i1 = ((triple >> 12) & 0x3f) as usize;
+        let i2 = ((triple >> 6) & 0x3f) as usize;
+        let i3 = (triple & 0x3f) as usize;
+
+        output.push(TABLE[i0] as char);
+        output.push(TABLE[i1] as char);
+        output.push(if chunk.len() > 1 {
+            TABLE[i2] as char
+        } else {
+            '='
+        });
+        output.push(if chunk.len() > 2 {
+            TABLE[i3] as char
+        } else {
+            '='
+        });
+    }
+    output
+}
+
+#[cfg(windows)]
+fn dpapi_protect(plain: &[u8]) -> Result<Vec<u8>> {
+    use windows::Win32::Security::Cryptography::{CryptProtectData, CRYPT_INTEGER_BLOB};
+
+    unsafe {
+        let mut input_blob = CRYPT_INTEGER_BLOB {
+            cbData: plain.len() as u32,
+            pbData: plain.as_ptr() as *mut u8,
+        };
+        let mut output_blob = CRYPT_INTEGER_BLOB {
+            cbData: 0,
+            pbData: std::ptr::null_mut(),
+        };
+
+        let result = CryptProtectData(
+            &mut input_blob,
+            None,
+            None,
+            None,
+            None,
+            0,
+            &mut output_blob,
+        );
+        if result.is_err() {
+            return Err(DomainError::Process(
+                "DPAPI CryptProtectData failed".to_string(),
+            ));
+        }
+
+        let encrypted =
+            std::slice::from_raw_parts(output_blob.pbData, output_blob.cbData as usize).to_vec();
+
+        // free the output buffer using Win32 LocalFree via raw FFI
+        extern "system" {
+            fn LocalFree(hmem: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
+        }
+        LocalFree(output_blob.pbData as *mut std::ffi::c_void);
+
+        Ok(encrypted)
+    }
+}
+
 /// decrypt data using Windows DPAPI (CryptUnprotectData).
 #[cfg(windows)]
 fn dpapi_unprotect(encrypted: &[u8]) -> Result<Vec<u8>> {
@@ -337,6 +483,13 @@ fn dpapi_unprotect(_encrypted: &[u8]) -> Result<Vec<u8>> {
     ))
 }
 
+#[cfg(not(windows))]
+fn dpapi_protect(_plain: &[u8]) -> Result<Vec<u8>> {
+    Err(DomainError::Process(
+        "DPAPI is only available on Windows".to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,5 +514,21 @@ mod tests {
     fn malformed_cookie_content_is_marked_invalid() {
         let state = classify_cookie_load_error(&DomainError::Serialization("bad".to_string()));
         assert_eq!(state, CookieState::Invalid);
+    }
+
+    #[test]
+    fn normalize_cookie_accepts_raw_cookie_header_forms() {
+        let value = normalize_roblosecurity_cookie(
+            ".ROBLOSECURITY=_|WARNING:-DO-NOT-SHARE-THIS.|_abc123; domain=.roblox.com; path=/",
+        );
+        assert_eq!(value, "_|WARNING:-DO-NOT-SHARE-THIS.|_abc123");
+    }
+
+    #[test]
+    fn base64_round_trip_matches_decoder() {
+        let input = b"ruststrap-cookie-test";
+        let encoded = base64_encode(input);
+        let decoded = base64_decode(&encoded).expect("decode");
+        assert_eq!(decoded, input);
     }
 }
