@@ -171,7 +171,11 @@ interface StartupLaunch {
 interface WeaoExploitStatus {
   title: string;
   version?: string | null;
+  updatedDate?: string | null;
+  updateStatus?: boolean | null;
   update_status?: boolean | null;
+  rbxversion?: string | null;
+  roblox_version?: string | null;
   detected?: boolean | null;
   free?: boolean | null;
   hidden?: boolean | null;
@@ -238,6 +242,27 @@ function exploitLogoCandidates(exploit: Pick<WeaoExploitStatus, "title" | "explo
   return out;
 }
 
+function exploitUpdateState(exploit: WeaoExploitStatus | null | undefined): boolean | null {
+  if (!exploit) {
+    return null;
+  }
+  if (typeof exploit.updateStatus === "boolean") {
+    return exploit.updateStatus;
+  }
+  if (typeof exploit.update_status === "boolean") {
+    return exploit.update_status;
+  }
+  return null;
+}
+
+function exploitSupportedVersion(exploit: WeaoExploitStatus | null | undefined): string {
+  if (!exploit) {
+    return "";
+  }
+  const raw = exploit.rbxversion || exploit.roblox_version || "";
+  return raw.trim();
+}
+
 function openExternalLink(url: string): void {
   void commands.openExternalUrl(url).catch(() => {
     window.open(url, "_blank", "noopener,noreferrer");
@@ -295,6 +320,7 @@ export function App() {
   const [bootstrapStatus, setBootstrapStatus] = useState("");
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
   const [activeExploit, setActiveExploit] = useState("");
+  const [activeDowngradeVersion, setActiveDowngradeVersion] = useState("");
   const [weaoExploits, setWeaoExploits] = useState<WeaoExploitStatus[]>([]);
   const [weaoLoading, setWeaoLoading] = useState(false);
   const [weaoError, setWeaoError] = useState("");
@@ -308,6 +334,70 @@ export function App() {
 
   const exploitSelectionEnabled = Boolean(settings?.EnableExploitSelection);
   const selectedExploit = (settings?.SelectedExploit || "").trim();
+
+  const fetchExploitStatus = async (title: string): Promise<WeaoExploitStatus | null> => {
+    try {
+      const status = (await commands.weaoExploitStatus(title)) as WeaoExploitStatus;
+      if (status?.title) {
+        setWeaoExploits((current) => {
+          const next = [...current];
+          const index = next.findIndex((item) => item.title === status.title);
+          if (index >= 0) {
+            next[index] = { ...next[index], ...status };
+            return next;
+          }
+          return [...current, status].sort((a, b) => a.title.localeCompare(b.title));
+        });
+      }
+      return status;
+    } catch {
+      const needle = title.trim().toLowerCase();
+      return (
+        weaoExploits.find((item) => item.title.toLowerCase() === needle) ||
+        null
+      );
+    }
+  };
+
+  const computeDowngradePlan = async (
+    baseSettings: Settings,
+    exploitName: string
+  ): Promise<{
+    effectiveSettings: Settings;
+    needsRestore: boolean;
+    downgradeVersion: string;
+    isUpdated: boolean | null;
+  }> => {
+    const exploitStatus = await fetchExploitStatus(exploitName);
+    const isUpdated = exploitUpdateState(exploitStatus);
+    const downgradeVersion = exploitSupportedVersion(exploitStatus);
+
+    if (isUpdated === false && downgradeVersion) {
+      const currentOverride = (baseSettings.ChannelHash || "").trim();
+      if (currentOverride !== downgradeVersion) {
+        return {
+          effectiveSettings: { ...baseSettings, ChannelHash: downgradeVersion },
+          needsRestore: true,
+          downgradeVersion,
+          isUpdated,
+        };
+      }
+
+      return {
+        effectiveSettings: baseSettings,
+        needsRestore: false,
+        downgradeVersion,
+        isUpdated,
+      };
+    }
+
+    return {
+      effectiveSettings: baseSettings,
+      needsRestore: false,
+      downgradeVersion: "",
+      isUpdated,
+    };
+  };
 
   const loadWeaoExploits = async (force = false): Promise<WeaoExploitStatus[]> => {
     if (!force && weaoExploits.length > 0) {
@@ -475,19 +565,45 @@ export function App() {
 
     const mode = (startupLaunch?.mode || "").toLowerCase();
     if (mode === "player" || mode === "studio" || mode === "studio_auth") {
+      if (!loadedSettings) {
+        return;
+      }
+
       const launchExploit =
-        mode === "player" && loadedSettings?.EnableExploitSelection
+        mode === "player" && loadedSettings.EnableExploitSelection
           ? (loadedSettings.SelectedExploit || "").trim()
           : "";
 
-      if (mode === "player" && loadedSettings?.EnableExploitSelection && !launchExploit) {
+      if (mode === "player" && loadedSettings.EnableExploitSelection && !launchExploit) {
         setView("launcher");
         setShowExploitPicker(true);
         setStatus("Exploit selection is enabled. Pick your exploit before launching.");
         return;
       }
 
+      let effectiveSettings = loadedSettings;
+      let restoreSettings = false;
+      let downgradeVersion = "";
+
+      if (mode === "player" && launchExploit) {
+        const plan = await computeDowngradePlan(loadedSettings, launchExploit);
+        effectiveSettings = plan.effectiveSettings;
+        restoreSettings = plan.needsRestore;
+        downgradeVersion = plan.downgradeVersion;
+
+        if (plan.isUpdated === false && downgradeVersion) {
+          setStatus(
+            `Exploit ${launchExploit} is not updated. Auto-downgrading to ${downgradeVersion}.`
+          );
+        } else if (plan.isUpdated === false) {
+          setStatus(
+            `Exploit ${launchExploit} is not updated, but WEAO did not provide a supported Roblox version.`
+          );
+        }
+      }
+
       setActiveExploit(launchExploit);
+      setActiveDowngradeVersion(downgradeVersion);
       startBootstrapOverlay(
         mode === "player"
           ? launchExploit
@@ -496,6 +612,9 @@ export function App() {
           : "Starting Studio..."
       );
       try {
+        if (restoreSettings) {
+          await commands.saveSettings(effectiveSettings);
+        }
         if (mode === "player") {
           await commands.launchPlayer(startupLaunch?.rawArgs || undefined);
         } else {
@@ -507,7 +626,15 @@ export function App() {
         setView("settings");
         setStatus(`Startup launch error: ${String(error)}`);
       } finally {
+        if (restoreSettings) {
+          try {
+            await commands.saveSettings(loadedSettings);
+          } catch (_) {
+            // ignore restoration failure for startup launch
+          }
+        }
         setActiveExploit("");
+        setActiveDowngradeVersion("");
       }
     }
   }
@@ -530,8 +657,11 @@ export function App() {
   async function saveAndLaunch() {
     if (!settings) return;
     setBusy(true);
+    let restoreSettingsAfterLaunch = false;
+    let settingsForLaunch = settings;
     try {
       let launchExploit = "";
+      let downgradeVersion = "";
       if (settings.EnableExploitSelection) {
         launchExploit = (settings.SelectedExploit || "").trim();
         if (!launchExploit) {
@@ -540,6 +670,21 @@ export function App() {
           setShowExploitPicker(true);
           setStatus("Exploit selection is enabled. Pick your exploit before launching.");
           return;
+        }
+
+        const plan = await computeDowngradePlan(settings, launchExploit);
+        settingsForLaunch = plan.effectiveSettings;
+        restoreSettingsAfterLaunch = plan.needsRestore;
+        downgradeVersion = plan.downgradeVersion;
+
+        if (plan.isUpdated === false && downgradeVersion) {
+          setStatus(
+            `Exploit ${launchExploit} is not updated. Auto-downgrading to ${downgradeVersion}.`
+          );
+        } else if (plan.isUpdated === false) {
+          setStatus(
+            `Exploit ${launchExploit} is not updated, but WEAO did not provide a supported Roblox version.`
+          );
         }
       }
 
@@ -555,10 +700,11 @@ export function App() {
         return;
       }
 
-      await commands.saveSettings(settings);
+      await commands.saveSettings(settingsForLaunch);
       await commands.saveFastFlags(fastFlags);
       try { await commands.applyModifications(); } catch (_) { /* ignore */ }
       setActiveExploit(launchExploit);
+      setActiveDowngradeVersion(downgradeVersion);
       startBootstrapOverlay(
         launchExploit
           ? `Starting Roblox with ${launchExploit}...`
@@ -580,7 +726,15 @@ export function App() {
       setView("settings");
       setStatus(`Launch error: ${String(e)}`);
     } finally {
+      if (restoreSettingsAfterLaunch) {
+        try {
+          await commands.saveSettings(settings);
+        } catch (_) {
+          // ignore restoration failure
+        }
+      }
       setActiveExploit("");
+      setActiveDowngradeVersion("");
       setBusy(false);
     }
   }
@@ -650,6 +804,9 @@ export function App() {
           <h2 style={{ fontSize: "1rem", fontWeight: 500, marginBottom: 16, color: "var(--text)" }}>{bootstrapStatus}</h2>
           {activeExploit && (
             <p className="bootstrap-exploit-meta">Using exploit: {activeExploit}</p>
+          )}
+          {activeDowngradeVersion && (
+            <p className="bootstrap-downgrade-meta">Auto-downgrade target: {activeDowngradeVersion}</p>
           )}
           <div className="bootstrap-progress-bar">
             <div
@@ -1281,6 +1438,7 @@ function ExploitPickerModal({
         <div className="exploit-picker-list">
           {filtered.map((item) => {
             const selected = selectedExploit === item.title;
+            const updated = exploitUpdateState(item);
             return (
               <button
                 key={item.title}
@@ -1292,7 +1450,7 @@ function ExploitPickerModal({
                   <strong>{item.title}</strong>
                   <span>
                     {item.version ? `v${item.version}` : "Version unknown"} ·{" "}
-                    {item.update_status ? "Updated" : "Not updated"}
+                    {updated === true ? "Updated" : updated === false ? "Not updated" : "Update unknown"}
                   </span>
                 </div>
                 {item.detected ? (

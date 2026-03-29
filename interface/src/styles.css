@@ -1307,6 +1307,12 @@ select optgroup {
   color: var(--accent-hover);
 }
 
+.bootstrap-downgrade-meta {
+  margin: -8px 0 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 .bootstrap-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--accent), var(--accent-progress));
