@@ -55,8 +55,22 @@ pub fn run_bootstrap_flow(
     runtime: &dyn BootstrapRuntime,
     context: &BootstrapContext,
 ) -> Result<BootstrapReport> {
+    let mut sink = |_event: &DomainEvent| {};
+    run_bootstrap_flow_with_observer(runtime, context, &mut sink)
+}
+
+pub fn run_bootstrap_flow_with_observer(
+    runtime: &dyn BootstrapRuntime,
+    context: &BootstrapContext,
+    on_event: &mut dyn FnMut(&DomainEvent),
+) -> Result<BootstrapReport> {
     let mut steps = Vec::new();
     let mut events = Vec::new();
+
+    let mut record_event = |event: DomainEvent| {
+        on_event(&event);
+        events.push(event);
+    };
 
     if context.mode == LaunchMode::None {
         return Err(DomainError::InvalidLaunchRequest(
@@ -64,54 +78,54 @@ pub fn run_bootstrap_flow(
         ));
     }
 
-    events.push(DomainEvent::BootstrapStatus {
+    record_event(DomainEvent::BootstrapStatus {
         message: "checking_connectivity".to_string(),
     });
     steps.push(BootstrapStep::ConnectivityCheck);
     runtime.check_connectivity()?;
 
-    events.push(DomainEvent::BootstrapStatus {
+    record_event(DomainEvent::BootstrapStatus {
         message: "resolving_version".to_string(),
     });
     steps.push(BootstrapStep::VersionResolution);
     let version_guid = runtime.resolve_version(context.mode, context.force_upgrade)?;
 
-    events.push(DomainEvent::BootstrapStatus {
+    record_event(DomainEvent::BootstrapStatus {
         message: "syncing_packages".to_string(),
     });
     steps.push(BootstrapStep::DownloadPackages);
     runtime.sync_packages(&version_guid)?;
 
-    events.push(DomainEvent::BootstrapStatus {
+    record_event(DomainEvent::BootstrapStatus {
         message: "applying_modifications".to_string(),
     });
     steps.push(BootstrapStep::ApplyModifications);
     runtime.apply_modifications(&version_guid)?;
 
-    events.push(DomainEvent::BootstrapStatus {
+    record_event(DomainEvent::BootstrapStatus {
         message: "registering_state".to_string(),
     });
     steps.push(BootstrapStep::RegisterSystemState);
     runtime.register_system_state(context.mode, &version_guid)?;
 
     if !context.no_launch {
-        events.push(DomainEvent::BootstrapStatus {
+        record_event(DomainEvent::BootstrapStatus {
             message: "launching_client".to_string(),
         });
         steps.push(BootstrapStep::LaunchClient);
         let pid = runtime.launch_client(context.mode, &context.launch_args)?;
-        events.push(DomainEvent::BootstrapStatus {
+        record_event(DomainEvent::BootstrapStatus {
             message: format!("launched_client_pid={pid}"),
         });
     } else if !context.quiet {
-        events.push(DomainEvent::PromptRequired {
+        record_event(DomainEvent::PromptRequired {
             kind: PromptKind::ConfirmLaunch,
             message: "launch_skipped_due_to_no_launch_flag".to_string(),
         });
     }
 
     steps.push(BootstrapStep::Completed);
-    events.push(DomainEvent::Progress {
+    record_event(DomainEvent::Progress {
         current: 1,
         total: 1,
     });

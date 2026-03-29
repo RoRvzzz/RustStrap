@@ -40,7 +40,9 @@ pub mod self_update;
 pub mod watcher;
 pub mod window_manipulation;
 
-pub use bootstrapper::{context_from_launch_settings, execute_bootstrap};
+pub use bootstrapper::{
+    context_from_launch_settings, execute_bootstrap, execute_bootstrap_with_observer,
+};
 pub use commands::{Command, LaunchRequest, LaunchTarget};
 pub use cookies::{AuthenticatedUser, CookieState, CookiesManager};
 pub use errors::{DomainError, Result};
@@ -57,7 +59,8 @@ pub use models::{
     BootstrapperStyle, ChannelChangeMode, CleanerOptions, RobloxState, Settings, State,
 };
 pub use orchestrator::{
-    run_bootstrap_flow, BootstrapContext, BootstrapReport, BootstrapRuntime, BootstrapStep,
+    run_bootstrap_flow, run_bootstrap_flow_with_observer, BootstrapContext, BootstrapReport,
+    BootstrapRuntime, BootstrapStep,
 };
 pub use persistence::{
     parse_roblox_state_json, parse_settings_json, parse_state_json, to_pretty_json, AppStateCompat,

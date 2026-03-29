@@ -7,7 +7,10 @@ https://rorvzzz.cool
 */
 use crate::ParsedLaunchSettings;
 use crate::Result;
-use crate::{run_bootstrap_flow, BootstrapContext, BootstrapReport, BootstrapRuntime, LaunchMode};
+use crate::{
+    run_bootstrap_flow_with_observer, BootstrapContext, BootstrapReport, BootstrapRuntime,
+    DomainEvent, LaunchMode,
+};
 
 pub fn context_from_launch_settings(settings: &ParsedLaunchSettings) -> BootstrapContext {
     BootstrapContext {
@@ -23,6 +26,15 @@ pub fn execute_bootstrap(
     runtime: &dyn BootstrapRuntime,
     settings: &ParsedLaunchSettings,
 ) -> Result<BootstrapReport> {
+    let mut sink = |_event: &DomainEvent| {};
+    execute_bootstrap_with_observer(runtime, settings, &mut sink)
+}
+
+pub fn execute_bootstrap_with_observer(
+    runtime: &dyn BootstrapRuntime,
+    settings: &ParsedLaunchSettings,
+    on_event: &mut dyn FnMut(&DomainEvent),
+) -> Result<BootstrapReport> {
     runtime.prepare_launch_context(
         settings.roblox_launch_mode,
         &settings.roblox_launch_args,
@@ -34,5 +46,5 @@ pub fn execute_bootstrap(
         // this is for any unknown launch uri
         context.mode = LaunchMode::Player;
     }
-    run_bootstrap_flow(runtime, &context)
+    run_bootstrap_flow_with_observer(runtime, &context, on_event)
 }

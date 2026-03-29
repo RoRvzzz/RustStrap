@@ -16,7 +16,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use Ruststrap_core::{
     decode_watcher_data, do_install, do_uninstall, do_uninstall_for_reinstall, encode_watcher_data,
-    execute_bootstrap, installed_app_path, launch_trayhost_process, launch_watcher_process,
+    execute_bootstrap, execute_bootstrap_with_observer, installed_app_path, launch_trayhost_process,
+    launch_watcher_process,
     region_selector_datacenters as core_region_selector_datacenters,
     region_selector_join as core_region_selector_join,
     region_selector_search_games as core_region_selector_search_games,
@@ -189,16 +190,6 @@ fn emit_domain_event(app: &AppHandle, event: DomainEvent) -> CommandResult {
             )
             .map_err(|err| format!("failed to emit watcher_activity: {err}")),
     }
-}
-
-fn emit_bootstrap_result(
-    app: &AppHandle,
-    report: Ruststrap_core::BootstrapReport,
-) -> CommandResult {
-    for event in report.events {
-        emit_domain_event(app, event)?;
-    }
-    Ok(())
 }
 
 fn build_launch_settings(mode: LaunchMode, raw_args: Option<String>) -> ParsedLaunchSettings {
@@ -557,13 +548,16 @@ async fn launch_player(
     }
 
     let settings = build_launch_settings(LaunchMode::Player, raw_args);
-    let report =
-        execute_bootstrap(host.runtime.as_ref(), &settings).map_err(|err| err.to_string())?;
+    let mut event_sink = |event: &DomainEvent| {
+        let _ = emit_domain_event(&app, event.clone());
+    };
+    let report = execute_bootstrap_with_observer(host.runtime.as_ref(), &settings, &mut event_sink)
+        .map_err(|err| err.to_string())?;
 
     let pid = launched_pid_from_report(&report);
     let _ = start_detached_watcher(host.runtime.as_ref(), pid, "player");
 
-    emit_bootstrap_result(&app, report)
+    Ok(())
 }
 
 #[tauri::command]
@@ -583,13 +577,16 @@ async fn launch_studio(
     }
 
     let settings = build_launch_settings(LaunchMode::Studio, raw_args);
-    let report =
-        execute_bootstrap(host.runtime.as_ref(), &settings).map_err(|err| err.to_string())?;
+    let mut event_sink = |event: &DomainEvent| {
+        let _ = emit_domain_event(&app, event.clone());
+    };
+    let report = execute_bootstrap_with_observer(host.runtime.as_ref(), &settings, &mut event_sink)
+        .map_err(|err| err.to_string())?;
 
     let pid = launched_pid_from_report(&report);
     let _ = start_detached_watcher(host.runtime.as_ref(), pid, "studio");
 
-    emit_bootstrap_result(&app, report)
+    Ok(())
 }
 
 #[tauri::command]
@@ -631,8 +628,12 @@ async fn run_background_updater(app: AppHandle, host: State<'_, RuntimeHost>) ->
         "-nolaunch".to_string(),
         "-quiet".to_string(),
     ]);
-    let report = execute_bootstrap(host.runtime.as_ref(), &args).map_err(|err| err.to_string())?;
-    emit_bootstrap_result(&app, report)
+    let mut event_sink = |event: &DomainEvent| {
+        let _ = emit_domain_event(&app, event.clone());
+    };
+    let _report = execute_bootstrap_with_observer(host.runtime.as_ref(), &args, &mut event_sink)
+        .map_err(|err| err.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
