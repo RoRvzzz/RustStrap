@@ -106,7 +106,7 @@ pub fn list_system_fonts() -> Result<Vec<SystemFontEntry>> {
         let mut fonts = Vec::<SystemFontEntry>::new();
 
         collect_fonts_from_key(
-            HKEY_LOCAL_MACHINE,
+            HKEY_LOCAL_MACHINE, 
             r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
             &windows_fonts_dir,
             &mut seen_paths,

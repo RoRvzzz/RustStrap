@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use crate::errors::{DomainError, Result};
 
-/// preset flag definitions mirroring Ruststrap's FastFlagManager.PresetFlags
+/// preset flag definitions
 pub static PRESET_FLAGS: &[(&str, &str)] = &[
     (
         "Rendering.ManualFullscreen",
@@ -66,7 +66,6 @@ pub static PRESET_FLAGS: &[(&str, &str)] = &[
 ];
 
 /// fastFlag manager that reads/writes `ClientSettings/ClientAppSettings.json`
-/// in the Modifications directory – full parity with Ruststrap's FastFlagManager.cs.
 pub struct FastFlagManager {
     file_path: PathBuf,
     flags: HashMap<String, Value>,
@@ -138,7 +137,7 @@ impl FastFlagManager {
         self.flags != self.original
     }
 
-    /// set a flag value. Pass `None` to delete the flag.
+    /// set a flag value. Pass None to delete the flag.
     pub fn set_value(&mut self, key: &str, value: Option<&str>) {
         if let Some(v) = value {
             self.flags

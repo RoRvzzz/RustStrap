@@ -76,7 +76,7 @@ npm run tauri build
 [badge-repo-downloads]:  https://img.shields.io/github/downloads/RoRvzzz/RustStrap/latest/total?style=flat-square&color=ff7a1a
 [badge-repo-latest]:     https://img.shields.io/github/v/release/RoRvzzz/RustStrap?style=flat-square&color=ff4d4f
 [badge-repo-stars]:      https://img.shields.io/github/stars/RoRvzzz/RustStrap?style=flat-square&color=dd9900
-[badge-discord]:         https://img.shields.io/discord/1364660238963179520?style=flat-square&logo=discord&logoColor=white&logoSize=auto&label=discord&color=5865f2
+[badge-discord]:         https://img.shields.io/discord/1378642974149312623?style=flat-square&logo=discord&logoColor=white&logoSize=auto&label=discord&color=5865f2
 
 [repo-license]:  https://github.com/RoRvzzz/RustStrap/blob/main/LICENSE
 [repo-releases]: https://github.com/RoRvzzz/RustStrap/releases
