@@ -51,6 +51,9 @@ https://rorvzzz.cool
 - cache cleaner
 - channel changer
 - detached watcher + tray host flow
+- exploit integration
+- auto login with cookies
+- multi-account coming very soon.
 
 > and much more.
 
