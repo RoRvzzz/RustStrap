@@ -2136,6 +2136,8 @@ function PageIntegrations({
 
 function PageBootstrapper({ s, set }: SettingsProps) {
   const [cookieCaptureMessage, setCookieCaptureMessage] = useState("");
+  const [cleanerRunning, setCleanerRunning] = useState(false);
+  const [cleanerMessage, setCleanerMessage] = useState("");
 
   const captureCookieFromCurrentSession = async () => {
     try {
@@ -2155,6 +2157,26 @@ function PageBootstrapper({ s, set }: SettingsProps) {
       );
     } catch (error: unknown) {
       setCookieCaptureMessage(`Cookie capture failed: ${String(error)}`);
+    }
+  };
+
+  const runCleanerNow = async () => {
+    if (cleanerRunning) {
+      return;
+    }
+
+    setCleanerRunning(true);
+    setCleanerMessage("");
+    try {
+      const result = await commands.runCleaner(
+        Number(s.CleanerOptions ?? 0),
+        Array.isArray(s.CleanerDirectories) ? s.CleanerDirectories : []
+      );
+      setCleanerMessage(`Cleaner finished. Deleted: ${result.deleted}, Failed: ${result.failed}`);
+    } catch (error: unknown) {
+      setCleanerMessage(`Cleaner failed: ${String(error)}`);
+    } finally {
+      setCleanerRunning(false);
     }
   };
 
@@ -2238,6 +2260,20 @@ function PageBootstrapper({ s, set }: SettingsProps) {
             if (!v) { const i = dirs.indexOf("ruststrap_logs"); if (i >= 0) dirs.splice(i, 1); }
             set("CleanerDirectories", dirs);
           }} />
+        </Opt>
+        <Opt header="Run cleaner now" desc="Execute cleaner immediately with the options above.">
+          <div style={{ display: "grid", gap: 8, justifyItems: "end" }}>
+            <button
+              className="btn-secondary btn-sm"
+              disabled={cleanerRunning || Number(s.CleanerOptions) === 0}
+              onClick={() => void runCleanerNow()}
+            >
+              {cleanerRunning ? "Cleaning..." : "Run Cleaner Now"}
+            </button>
+            {cleanerMessage && (
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{cleanerMessage}</span>
+            )}
+          </div>
         </Opt>
       </Expander>
 

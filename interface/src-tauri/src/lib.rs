@@ -1007,19 +1007,50 @@ async fn parse_join_url(launch_command: String) -> Result<serde_json::Value, Str
 }
 
 #[tauri::command]
-async fn run_cleaner_cmd(host: State<'_, RuntimeHost>) -> Result<serde_json::Value, String> {
-    let config = Ruststrap_core::CleanerConfig::from_base_dir(&host.runtime.config.base_dir);
-    let report = Ruststrap_core::run_cleaner(
-        &config,
-        Ruststrap_core::CleanerAge::OneWeek,
-        &[
+async fn run_cleaner_cmd(
+    host: State<'_, RuntimeHost>,
+    age: Option<i32>,
+    directories: Option<Vec<String>>,
+) -> Result<serde_json::Value, String> {
+    let settings = host.runtime.load_settings().map_err(|e| e.to_string())?;
+    let selected_age = age.unwrap_or_else(|| settings.cleaner_options.as_i32());
+    let selected_dirs = directories.unwrap_or_else(|| settings.cleaner_directories.clone());
+
+    let cleaner_age = match selected_age {
+        1 => Ruststrap_core::CleanerAge::OneDay,
+        2 => Ruststrap_core::CleanerAge::OneWeek,
+        3 => Ruststrap_core::CleanerAge::OneMonth,
+        4 => Ruststrap_core::CleanerAge::TwoMonths,
+        _ => Ruststrap_core::CleanerAge::Never,
+    };
+
+    let mut enabled_dirs = Vec::<&str>::new();
+    for key in selected_dirs {
+        match key.to_ascii_lowercase().as_str() {
+            "cache" => {
+                enabled_dirs.push("RuststrapCache");
+                enabled_dirs.push("RobloxCache");
+            }
+            "logs" => enabled_dirs.push("RobloxLogs"),
+            "ruststrap_logs" => enabled_dirs.push("RuststrapLogs"),
+            "roblox_logs" => enabled_dirs.push("RobloxLogs"),
+            "roblox_cache" => enabled_dirs.push("RobloxCache"),
+            "ruststrap_cache" => enabled_dirs.push("RuststrapCache"),
+            _ => {}
+        }
+    }
+    if enabled_dirs.is_empty() {
+        enabled_dirs = vec![
             "RuststrapLogs",
             "RuststrapCache",
             "RobloxLogs",
             "RobloxCache",
-        ],
-    )
-    .map_err(|e| e.to_string())?;
+        ];
+    }
+
+    let config = Ruststrap_core::CleanerConfig::from_base_dir(&host.runtime.config.base_dir);
+    let report =
+        Ruststrap_core::run_cleaner(&config, cleaner_age, &enabled_dirs).map_err(|e| e.to_string())?;
 
     Ok(serde_json::json!({
         "deleted": report.total_deleted,

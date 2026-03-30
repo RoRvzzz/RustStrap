@@ -29,6 +29,11 @@ interface InstallResult {
   [key: string]: unknown;
 }
 
+interface CleanerRunResult {
+  deleted: number;
+  failed: number;
+}
+
 interface RegionSelectorStatus {
   cookie_state: string;
   has_valid_cookie: boolean;
@@ -170,6 +175,10 @@ export const commands = {
   // Modifications
   async applyModifications(): Promise<void> {
     return invoke("apply_modifications");
+  },
+
+  async runCleaner(age?: number, directories?: string[]): Promise<CleanerRunResult> {
+    return invoke<CleanerRunResult>("run_cleaner_cmd", { age, directories });
   },
 
   // Window controls
