@@ -13,8 +13,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use Ruststrap_core::{
+    AccountManager,
     decode_watcher_data, do_install, do_uninstall, do_uninstall_for_reinstall, encode_watcher_data,
     execute_bootstrap, execute_bootstrap_with_observer, installed_app_path, launch_trayhost_process,
     launch_watcher_process,
@@ -513,6 +514,14 @@ fn ensure_runtime_ready_internal(
     Ok(updated)
 }
 
+fn close_auxiliary_windows_for_relaunch(app: &AppHandle) {
+    for (label, window) in app.webview_windows() {
+        if label != "main" {
+            let _ = window.close();
+        }
+    }
+}
+
 // section: core commands
 
 #[tauri::command]
@@ -539,6 +548,7 @@ async fn launch_player(
 ) -> CommandResult {
     let readiness = ensure_runtime_ready_internal(host.runtime.as_ref())?;
     if readiness.relaunched {
+        close_auxiliary_windows_for_relaunch(&app);
         return Err(
             "Ruststrap relaunched into the installed runtime; retry launch there".to_string(),
         );
@@ -568,6 +578,7 @@ async fn launch_studio(
 ) -> CommandResult {
     let readiness = ensure_runtime_ready_internal(host.runtime.as_ref())?;
     if readiness.relaunched {
+        close_auxiliary_windows_for_relaunch(&app);
         return Err(
             "Ruststrap relaunched into the installed runtime; retry launch there".to_string(),
         );
@@ -613,12 +624,25 @@ async fn open_settings(app: AppHandle, host: State<'_, RuntimeHost>) -> CommandR
 }
 
 #[tauri::command]
+async fn open_modifications_folder(host: State<'_, RuntimeHost>) -> CommandResult {
+    fs::create_dir_all(&host.runtime.config.modifications_dir).map_err(|err| err.to_string())?;
+    let _ = host.shell.reveal_path(&host.runtime.config.modifications_dir);
+    Ok(())
+}
+
+#[tauri::command]
 async fn open_external_url(host: State<'_, RuntimeHost>, url: String) -> CommandResult {
     let trimmed = url.trim();
     if trimmed.is_empty() {
         return Err("url cannot be empty".to_string());
     }
     host.shell.open_url(trimmed).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn get_system_fonts() -> Result<serde_json::Value, String> {
+    let fonts = Ruststrap_core::list_system_fonts().map_err(|err| err.to_string())?;
+    serde_json::to_value(fonts).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -735,8 +759,14 @@ async fn get_runtime_status(host: State<'_, RuntimeHost>) -> Result<serde_json::
 }
 
 #[tauri::command]
-async fn ensure_runtime_ready(host: State<'_, RuntimeHost>) -> Result<serde_json::Value, String> {
+async fn ensure_runtime_ready(
+    app: AppHandle,
+    host: State<'_, RuntimeHost>,
+) -> Result<serde_json::Value, String> {
     let readiness = ensure_runtime_ready_internal(host.runtime.as_ref())?;
+    if readiness.relaunched {
+        close_auxiliary_windows_for_relaunch(&app);
+    }
     serde_json::to_value(readiness).map_err(|e| e.to_string())
 }
 
@@ -789,6 +819,7 @@ async fn check_self_update() -> Result<serde_json::Value, String> {
 
 #[tauri::command]
 async fn do_full_install(
+    app: AppHandle,
     host: State<'_, RuntimeHost>,
     create_desktop_shortcut: bool,
     create_start_menu_shortcut: bool,
@@ -813,6 +844,7 @@ async fn do_full_install(
             .spawn()
             .map_err(|err| format!("failed to relaunch installed executable: {err}"))?;
         relaunched = true;
+        close_auxiliary_windows_for_relaunch(&app);
     }
 
     Ok(FullInstallResult {
@@ -830,6 +862,36 @@ async fn do_full_uninstall(
     Ruststrap_core::do_uninstall(&host.runtime.config.base_dir, keep_data)
         .map_err(|err| err.to_string())?;
     emit_status(&app, "full_uninstall_completed")
+}
+
+#[tauri::command]
+fn open_account_manager_window(app: AppHandle) -> CommandResult {
+    const ACCOUNT_MANAGER_LABEL: &str = "account-manager";
+
+    if let Some(existing) = app.get_webview_window(ACCOUNT_MANAGER_LABEL) {
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+
+    WebviewWindowBuilder::new(
+        &app,
+        ACCOUNT_MANAGER_LABEL,
+        WebviewUrl::default(),
+    )
+    .title("Ruststrap Account Manager")
+    .inner_size(1020.0, 700.0)
+    .min_inner_size(860.0, 560.0)
+    .resizable(true)
+    .decorations(true)
+    .transparent(false)
+    .always_on_top(false)
+    .initialization_script("window.__RUSTSTRAP_ACCOUNT_MANAGER__ = true;")
+    .center()
+    .build()
+    .map_err(|err| format!("failed to create account manager window: {err}"))?;
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -859,6 +921,81 @@ async fn capture_current_cookie() -> Result<serde_json::Value, String> {
         "cookie": cookie,
         "user": mgr.authenticated_user(),
     }))
+}
+
+#[tauri::command]
+async fn account_manager_snapshot(host: State<'_, RuntimeHost>) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager.snapshot().map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn account_manager_add_cookie(
+    host: State<'_, RuntimeHost>,
+    cookie: String,
+    alias: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager
+        .add_or_update_cookie(&cookie, alias.as_deref())
+        .map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn account_manager_import_current_cookie(
+    host: State<'_, RuntimeHost>,
+) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager
+        .import_current_cookie()
+        .map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn account_manager_set_active(
+    host: State<'_, RuntimeHost>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager
+        .set_active_account(&id)
+        .map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn account_manager_clear_active(
+    host: State<'_, RuntimeHost>,
+) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager.clear_active_account().map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn account_manager_rename(
+    host: State<'_, RuntimeHost>,
+    id: String,
+    alias: String,
+) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager
+        .rename_account(&id, &alias)
+        .map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+async fn account_manager_remove(
+    host: State<'_, RuntimeHost>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let manager = AccountManager::from_base_dir(&host.runtime.config.base_dir);
+    let snapshot = manager.remove_account(&id).map_err(|err| err.to_string())?;
+    serde_json::to_value(snapshot).map_err(|err| err.to_string())
 }
 
 // section: phase 2+ commands
@@ -1100,6 +1237,11 @@ fn win_close(window: tauri::Window) {
 }
 
 #[tauri::command]
+fn app_exit(app: AppHandle) {
+    app.exit(0);
+}
+
+#[tauri::command]
 fn win_minimize(window: tauri::Window) {
     let _ = window.minimize();
 }
@@ -1212,7 +1354,9 @@ pub fn run() {
             launch_player,
             launch_studio,
             open_settings,
+            open_modifications_folder,
             open_external_url,
+            get_system_fonts,
             run_background_updater,
             check_updates,
             apply_modifications,
@@ -1228,8 +1372,16 @@ pub fn run() {
             check_self_update,
             do_full_install,
             do_full_uninstall,
+            open_account_manager_window,
             get_cookie_state,
             capture_current_cookie,
+            account_manager_snapshot,
+            account_manager_add_cookie,
+            account_manager_import_current_cookie,
+            account_manager_set_active,
+            account_manager_clear_active,
+            account_manager_rename,
+            account_manager_remove,
             parse_join_url,
             run_cleaner_cmd,
             query_server_location,
@@ -1257,6 +1409,7 @@ pub fn run() {
             region_selector_servers,
             region_selector_join,
             win_close,
+            app_exit,
             win_minimize,
             win_maximize,
         ])

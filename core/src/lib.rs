@@ -9,6 +9,7 @@ https://rorvzzz.cool
 
 pub mod activity_data;
 pub mod activity_watcher;
+pub mod account_manager;
 pub mod bootstrapper;
 pub mod cleaner;
 pub mod commands;
@@ -37,6 +38,7 @@ pub mod roblox_api;
 #[path = "runtime_stable.rs"]
 pub mod runtime;
 pub mod self_update;
+pub mod system_fonts;
 pub mod watcher;
 pub mod window_manipulation;
 
@@ -44,6 +46,7 @@ pub use bootstrapper::{
     context_from_launch_settings, execute_bootstrap, execute_bootstrap_with_observer,
 };
 pub use commands::{Command, LaunchRequest, LaunchTarget};
+pub use account_manager::{AccountManager, AccountManagerSnapshot, AccountProfile};
 pub use cookies::{AuthenticatedUser, CookieState, CookiesManager};
 pub use errors::{DomainError, Result};
 pub use events::{DomainEvent, PromptKind, WatcherEvent};
@@ -73,6 +76,7 @@ pub use runtime::{
     VersionRequestSpec,
 };
 pub use self_update::{check_for_updates, compare_semver, download_update, launch_update};
+pub use system_fonts::{list_system_fonts, SystemFontEntry};
 pub use watcher::{decode_watcher_data, encode_watcher_data, Watcher, WatcherData};
 
 pub use activity_data::ActivityData;

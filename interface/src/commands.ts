@@ -94,6 +94,27 @@ interface CapturedCookie {
   } | null;
 }
 
+interface AccountManagerProfile {
+  id: string;
+  alias: string;
+  user_id: number;
+  username: string;
+  display_name: string;
+  active: boolean;
+  created_at_utc: string;
+  updated_at_utc: string;
+}
+
+interface AccountManagerSnapshot {
+  active_account_id?: string | null;
+  accounts: AccountManagerProfile[];
+}
+
+interface SystemFontEntry {
+  name: string;
+  path: string;
+}
+
 export const commands = {
   // setttings
   async getSettings(): Promise<Settings> {
@@ -164,13 +185,29 @@ export const commands = {
     return invoke("win_close");
   },
 
+  async appExit(): Promise<void> {
+    return invoke("app_exit");
+  },
+
   // Settings folder
   async openSettings(): Promise<void> {
     return invoke("open_settings");
   },
 
+  async openModsFolder(): Promise<void> {
+    return invoke("open_modifications_folder");
+  },
+
   async openExternalUrl(url: string): Promise<void> {
     return invoke("open_external_url", { url });
+  },
+
+  async getSystemFonts(): Promise<SystemFontEntry[]> {
+    return invoke<SystemFontEntry[]>("get_system_fonts");
+  },
+
+  async openAccountManagerWindow(): Promise<void> {
+    return invoke("open_account_manager_window");
   },
 
   async weaoExploitStatuses(): Promise<WeaoExploitStatus[]> {
@@ -187,6 +224,34 @@ export const commands = {
 
   async captureCurrentCookie(): Promise<CapturedCookie> {
     return invoke<CapturedCookie>("capture_current_cookie");
+  },
+
+  async accountManagerSnapshot(): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_snapshot");
+  },
+
+  async accountManagerAddCookie(cookie: string, alias?: string): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_add_cookie", { cookie, alias });
+  },
+
+  async accountManagerImportCurrentCookie(): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_import_current_cookie");
+  },
+
+  async accountManagerSetActive(id: string): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_set_active", { id });
+  },
+
+  async accountManagerClearActive(): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_clear_active");
+  },
+
+  async accountManagerRename(id: string, alias: string): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_rename", { id, alias });
+  },
+
+  async accountManagerRemove(id: string): Promise<AccountManagerSnapshot> {
+    return invoke<AccountManagerSnapshot>("account_manager_remove", { id });
   },
 
   // Region Selector

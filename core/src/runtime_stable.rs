@@ -13,6 +13,7 @@ use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 
+use crate::account_manager::AccountManager;
 use crate::cookies::{normalize_roblosecurity_cookie, persist_roblosecurity_cookie};
 use crate::errors::{DomainError, Result};
 use crate::launch_flags::LaunchMode;
@@ -36,6 +37,17 @@ fn configured_roblosecurity_cookie(settings: &SettingsFileCompat) -> Option<Stri
         None
     } else {
         Some(normalized)
+    }
+}
+
+fn launch_cookie_from_account_manager(base_dir: &Path) -> Option<String> {
+    let manager = AccountManager::from_base_dir(base_dir);
+    match manager.active_cookie_value() {
+        Ok(cookie) => cookie,
+        Err(error) => {
+            log::warn!("failed to load active account manager cookie: {error}");
+            None
+        }
     }
 }
 
@@ -707,6 +719,84 @@ fn normalize_relative_path(value: &str) -> String {
         .to_string()
 }
 
+const CURSOR_TARGETS: [&str; 4] = [
+    "content\\textures\\Cursors\\KeyboardMouse\\ArrowCursor.png",
+    "content\\textures\\Cursors\\KeyboardMouse\\ArrowFarCursor.png",
+    "content\\textures\\Cursors\\ArrowCursor.png",
+    "content\\textures\\Cursors\\ArrowFarCursor.png",
+];
+
+fn settings_extra_bool(settings: &SettingsFileCompat, key: &str) -> bool {
+    settings
+        .extra
+        .get(key)
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn settings_extra_i64(settings: &SettingsFileCompat, key: &str) -> Option<i64> {
+    settings.extra.get(key).and_then(|value| value.as_i64())
+}
+
+fn settings_extra_string(settings: &SettingsFileCompat, key: &str) -> Option<String> {
+    settings
+        .extra
+        .get(key)
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
+
+fn push_manifest_entry(manifest: &mut Vec<String>, path: String) {
+    if !manifest.iter().any(|item| item.eq_ignore_ascii_case(&path)) {
+        manifest.push(path);
+    }
+}
+
+fn copy_file_with_manifest(
+    src: &Path,
+    dst: &Path,
+    version_root: &Path,
+    manifest: &mut Vec<String>,
+) -> Result<()> {
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::copy(src, dst)?;
+
+    if let Ok(relative) = dst.strip_prefix(version_root) {
+        let entry = normalize_relative_path(&relative.to_string_lossy());
+        push_manifest_entry(manifest, entry);
+    }
+
+    Ok(())
+}
+
+fn collect_files_recursive(root: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::<PathBuf>::new();
+    if !root.exists() {
+        return Ok(files);
+    }
+
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        for entry in fs::read_dir(&current)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.is_file() {
+                files.push(path);
+            }
+        }
+    }
+
+    Ok(files)
+}
+
 fn http_get(url: &str, headers: &HashMap<String, String>) -> Result<(u16, String)> {
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
@@ -1273,6 +1363,7 @@ impl BootstrapRuntime for FilesystemBootstrapRuntime {
             )));
         }
 
+        let settings = self.load_settings()?;
         let mode = self.infer_mode_for_version(version_guid)?;
         let package_map = self.package_map_for_mode(mode)?;
         let mut state = self.load_roblox_state()?;
@@ -1309,6 +1400,103 @@ impl BootstrapRuntime for FilesystemBootstrapRuntime {
             }
         }
 
+        let mut applied_manifest = Vec::<String>::new();
+
+        for source_path in collect_files_recursive(&self.config.modifications_dir)? {
+            let Ok(relative) = source_path.strip_prefix(&self.config.modifications_dir) else {
+                continue;
+            };
+            let destination = version_path.join(relative);
+            copy_file_with_manifest(&source_path, &destination, &version_path, &mut applied_manifest)?;
+        }
+
+        let cursor_type = settings_extra_i64(&settings, "CursorType").unwrap_or(0);
+        let cursor_source = match cursor_type {
+            1 => {
+                let preset_dir = self.config.modifications_dir.join("Cursors");
+                [
+                    "2006.png",
+                    "From2006.png",
+                    "cursor-2006.png",
+                    "classic-2006.png",
+                ]
+                .iter()
+                .map(|name| preset_dir.join(name))
+                .find(|path| path.exists())
+            }
+            2 => {
+                let preset_dir = self.config.modifications_dir.join("Cursors");
+                [
+                    "2013.png",
+                    "From2013.png",
+                    "cursor-2013.png",
+                    "classic-2013.png",
+                ]
+                .iter()
+                .map(|name| preset_dir.join(name))
+                .find(|path| path.exists())
+            }
+            3 => settings_extra_string(&settings, "CustomCursorPath").map(PathBuf::from),
+            _ => None,
+        };
+
+        if let Some(source) = cursor_source {
+            if source.exists() {
+                for target in CURSOR_TARGETS {
+                    let destination = version_path.join(target);
+                    copy_file_with_manifest(&source, &destination, &version_path, &mut applied_manifest)?;
+                }
+            } else {
+                log::warn!("custom cursor source does not exist: {}", source.display());
+            }
+        } else if cursor_type > 0 {
+            log::warn!("cursor preset {} selected, but no cursor source file was found", cursor_type);
+        }
+
+        if settings_extra_bool(&settings, "UseCustomFont") {
+            let font_source = settings_extra_string(&settings, "CustomFontPath")
+                .or_else(|| settings_extra_string(&settings, "CustomFontLocation"));
+
+            if let Some(raw_source) = font_source {
+                let source = PathBuf::from(raw_source);
+                if source.is_file() {
+                    let extension = source
+                        .extension()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("")
+                        .to_ascii_lowercase();
+
+                    let destination = if extension == "json" {
+                        version_path.join("content\\fonts\\families\\Arial.json")
+                    } else {
+                        let file_name = source
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .filter(|name| !name.trim().is_empty())
+                            .unwrap_or("CustomFont.ttf");
+                        version_path.join("content\\fonts\\custom").join(file_name)
+                    };
+                    copy_file_with_manifest(&source, &destination, &version_path, &mut applied_manifest)?;
+                } else if source.is_dir() {
+                    let destination_root = version_path.join("content\\fonts");
+                    for file in collect_files_recursive(&source)? {
+                        let Ok(relative) = file.strip_prefix(&source) else {
+                            continue;
+                        };
+                        let destination = destination_root.join(relative);
+                        copy_file_with_manifest(&file, &destination, &version_path, &mut applied_manifest)?;
+                    }
+                } else {
+                    log::warn!("custom font source does not exist: {}", source.display());
+                }
+            } else {
+                log::warn!("UseCustomFont is enabled, but CustomFontPath is not configured");
+            }
+        }
+
+        applied_manifest.sort_by_key(|value| value.to_ascii_lowercase());
+        state.mod_manifest = applied_manifest;
+
         if !restored.is_empty() {
             state.extra.insert(
                 "LastRestoreCandidates".to_string(),
@@ -1320,8 +1508,9 @@ impl BootstrapRuntime for FilesystemBootstrapRuntime {
                     },
                 )?,
             );
-            self.save_roblox_state(&state)?;
         }
+
+        self.save_roblox_state(&state)?;
 
         Ok(())
     }
@@ -1343,7 +1532,9 @@ impl BootstrapRuntime for FilesystemBootstrapRuntime {
         let settings = self.load_settings()?;
 
         if settings.cookie_auto_apply {
-            if let Some(cookie) = configured_roblosecurity_cookie(&settings) {
+            let cookie = launch_cookie_from_account_manager(&self.config.base_dir)
+                .or_else(|| configured_roblosecurity_cookie(&settings));
+            if let Some(cookie) = cookie {
                 if let Err(error) = persist_roblosecurity_cookie(&cookie) {
                     log::warn!("failed to apply configured Roblox cookie before launch: {error}");
                 } else {

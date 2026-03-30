@@ -7,7 +7,7 @@ https://rorvzzz.cool
 */
 import React, { useEffect, useMemo, useState } from "react";
 import { commands } from "./commands";
-import { 
+import {
   Puzzle, 
   Rocket, 
   Globe, 
@@ -28,6 +28,10 @@ import {
   RefreshCw,
   Search,
   Square,
+  User,
+  ShieldCheck,
+  CheckCircle2,
+  Circle,
   X
 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
@@ -186,6 +190,27 @@ interface WeaoExploitStatus {
   [key: string]: unknown;
 }
 
+interface AccountManagerProfile {
+  id: string;
+  alias: string;
+  user_id: number;
+  username: string;
+  display_name: string;
+  active: boolean;
+  created_at_utc: string;
+  updated_at_utc: string;
+}
+
+interface AccountManagerSnapshot {
+  active_account_id?: string | null;
+  accounts: AccountManagerProfile[];
+}
+
+interface SystemFontEntry {
+  name: string;
+  path: string;
+}
+
 const BOOTSTRAP_PHASE_TOTAL = 6;
 const THEME_DARK_VALUE = 0;
 const THEME_LIGHT_VALUE = 1;
@@ -200,6 +225,21 @@ const VOXLIS_WORDMARK_MASK_STYLE = {
 
 const WEAO_WINDOWS_PLATFORM = "windows";
 const EXPLOIT_LOGO_EXTENSIONS = ["png", "webp", "jpg", "jpeg", "svg"] as const;
+const IS_ACCOUNT_MANAGER_WINDOW = (() => {
+  const runtimeWindow = window as unknown as {
+    __RUSTSTRAP_ACCOUNT_MANAGER__?: boolean;
+    __TAURI_INTERNALS__?: { metadata?: { currentWindow?: { label?: string } } };
+  };
+  if (runtimeWindow.__RUSTSTRAP_ACCOUNT_MANAGER__ === true) {
+    return true;
+  }
+  const tauriMetadata = runtimeWindow.__TAURI_INTERNALS__;
+  const label = tauriMetadata?.metadata?.currentWindow?.label || "";
+  if (label === "account-manager") {
+    return true;
+  }
+  return new URLSearchParams(window.location.search).get("window") === "account-manager";
+})();
 
 function normalizeSettingsForUi(raw: Settings): Settings {
   return {
@@ -433,7 +473,24 @@ export function App() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (IS_ACCOUNT_MANAGER_WINDOW) {
+      return;
+    }
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!IS_ACCOUNT_MANAGER_WINDOW) {
+      return;
+    }
+    void commands
+      .getSettings()
+      .then((value) => setSettings(normalizeSettingsForUi(value as Settings)))
+      .catch(() => {
+        // ignore: account manager can run with default theme tokens
+      });
+  }, []);
   
   useEffect(() => {
     getVersion()
@@ -493,6 +550,9 @@ export function App() {
   }, [settings?.EnableExploitSelection]);
 
   useEffect(() => {
+    if (IS_ACCOUNT_MANAGER_WINDOW) {
+      return;
+    }
     const unsubs: (() => void)[] = [];
     
     listen<unknown>("bootstrap_status", (e) => {
@@ -547,7 +607,7 @@ export function App() {
       const runtime = await commands.ensureRuntimeReady();
       setRuntimeStatus(runtime);
       if (runtime?.relaunched) {
-        await commands.winClose();
+        await commands.appExit();
         return;
       }
       if (runtime?.install_required) {
@@ -701,7 +761,7 @@ export function App() {
       const runtime = await commands.ensureRuntimeReady();
       setRuntimeStatus(runtime);
       if (runtime?.relaunched) {
-        await commands.winClose();
+        await commands.appExit();
         return;
       }
       if (runtime?.install_required) {
@@ -768,6 +828,10 @@ export function App() {
     setShowExploitPicker(false);
   };
 
+  if (IS_ACCOUNT_MANAGER_WINDOW) {
+    return <AccountManagerWindow />;
+  }
+
   if (!settings) {
     return (
       <div className="app-shell">
@@ -780,6 +844,7 @@ export function App() {
 
   const tabs = [
     { id: "integrations", label: "Integrations", icon: <Puzzle size={18} /> },
+    { id: "accounts", label: "Accounts", icon: <User size={18} /> },
     { id: "bootstrapper", label: "Bootstrapper", icon: <Rocket size={18} /> },
     { id: "region", label: "Region Selector", icon: <MapPin size={18} /> },
     { id: "deployment", label: "Deployment", icon: <Globe size={18} /> },
@@ -860,6 +925,10 @@ export function App() {
           selectedExploit={selectedExploit}
           selectedExploitStatus={weaoExploits.find((item) => item.title === selectedExploit) || null}
           openExploitPicker={() => void openExploitPicker()}
+          openAccountManagerInSettings={() => {
+            setTab("accounts");
+            setView("settings");
+          }}
         />
         <ExploitPickerModal
           open={showExploitPicker}
@@ -937,6 +1006,7 @@ export function App() {
               onOpenPicker={() => void openExploitPicker()}
             />
           )}
+          {tab === "accounts" && <AccountManagerWindow embedded />}
           {tab === "bootstrapper" && <PageBootstrapper s={settings} set={set} />}
           {tab === "region" && <PageRegionSelector s={settings} set={set} />}
           {tab === "deployment" && <PageDeployment s={settings} set={set} />}
@@ -985,6 +1055,7 @@ interface LauncherViewProps {
   selectedExploit: string;
   selectedExploitStatus: WeaoExploitStatus | null;
   openExploitPicker: () => void;
+  openAccountManagerInSettings: () => void;
 }
 
 function LauncherView({
@@ -996,6 +1067,7 @@ function LauncherView({
   selectedExploit,
   selectedExploitStatus,
   openExploitPicker,
+  openAccountManagerInSettings,
 }: LauncherViewProps) {
   return (
     <div className="launcher-page">
@@ -1064,6 +1136,10 @@ function LauncherView({
             <Settings2 size={20} />
             <span>Settings</span>
           </button>
+          <button className="action-card secondary" onClick={openAccountManagerInSettings}>
+            <User size={20} />
+            <span>Account Manager</span>
+          </button>
           <div className="launcher-divider" />
           <button className="action-card tertiary" onClick={() => openExternalLink(RUSTSTRAP_GITHUB_URL)}>
             <BookOpen size={20} />
@@ -1075,6 +1151,320 @@ function LauncherView({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AccountManagerWindow({ embedded = false }: { embedded?: boolean }) {
+  const [snapshot, setSnapshot] = useState<AccountManagerSnapshot>({
+    active_account_id: null,
+    accounts: [],
+  });
+  const [selectedId, setSelectedId] = useState("");
+  const [cookieInput, setCookieInput] = useState("");
+  const [aliasInput, setAliasInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("Loading accounts...");
+
+  const applySnapshot = (next: AccountManagerSnapshot) => {
+    const accounts = next.accounts || [];
+    setSnapshot({
+      active_account_id: next.active_account_id || null,
+      accounts,
+    });
+
+    if (accounts.length === 0) {
+      setSelectedId("");
+      setAliasInput("");
+      return;
+    }
+
+    if (selectedId && accounts.some((item) => item.id === selectedId)) {
+      return;
+    }
+    const active = accounts.find((item) => item.active) || accounts[0];
+    setSelectedId(active.id);
+    setAliasInput(active.alias);
+  };
+
+  const refresh = async () => {
+    try {
+      const next = await commands.accountManagerSnapshot();
+      applySnapshot(next);
+      setStatus(next.accounts.length ? "Account manager ready." : "No accounts saved yet.");
+    } catch (error: unknown) {
+      setStatus(`Failed to load accounts: ${String(error)}`);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const selectedAccount = useMemo(
+    () => snapshot.accounts.find((item) => item.id === selectedId) || null,
+    [snapshot.accounts, selectedId]
+  );
+
+  useEffect(() => {
+    if (selectedAccount) {
+      setAliasInput(selectedAccount.alias);
+    }
+  }, [selectedAccount?.id]);
+
+  const visibleAccounts = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) {
+      return snapshot.accounts;
+    }
+    return snapshot.accounts.filter((account) => {
+      return (
+        account.alias.toLowerCase().includes(needle) ||
+        account.username.toLowerCase().includes(needle) ||
+        account.display_name.toLowerCase().includes(needle)
+      );
+    });
+  }, [snapshot.accounts, query]);
+
+  const runAction = async (work: () => Promise<AccountManagerSnapshot>, success: string) => {
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const next = await work();
+      applySnapshot(next);
+      setStatus(success);
+    } catch (error: unknown) {
+      setStatus(String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addByCookie = async () => {
+    const cookie = cookieInput.trim();
+    if (!cookie) {
+      setStatus("Paste a ROBLOSECURITY cookie first.");
+      return;
+    }
+
+    await runAction(
+      () => commands.accountManagerAddCookie(cookie, aliasInput.trim() || undefined),
+      "Account added/updated."
+    );
+    setCookieInput("");
+  };
+
+  const importCurrent = async () => {
+    await runAction(
+      () => commands.accountManagerImportCurrentCookie(),
+      "Imported current Roblox session."
+    );
+  };
+
+  const renameSelected = async () => {
+    if (!selectedAccount) {
+      setStatus("Select an account first.");
+      return;
+    }
+    await runAction(
+      () => commands.accountManagerRename(selectedAccount.id, aliasInput.trim()),
+      "Account alias updated."
+    );
+  };
+
+  const setActive = async () => {
+    if (!selectedAccount) {
+      setStatus("Select an account first.");
+      return;
+    }
+    await runAction(
+      () => commands.accountManagerSetActive(selectedAccount.id),
+      `${selectedAccount.alias} is now active for launch.`
+    );
+  };
+
+  const clearActive = async () => {
+    await runAction(
+      () => commands.accountManagerClearActive(),
+      "Active launch account cleared."
+    );
+  };
+
+  const removeSelected = async () => {
+    if (!selectedAccount) {
+      setStatus("Select an account first.");
+      return;
+    }
+    const approved = window.confirm(`Remove ${selectedAccount.alias}?`);
+    if (!approved) {
+      return;
+    }
+    await runAction(
+      () => commands.accountManagerRemove(selectedAccount.id),
+      "Account removed."
+    );
+  };
+
+  const formatTime = (value: string): string => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleString();
+  };
+
+  return (
+    <div className={`account-manager-window${embedded ? " embedded" : ""}`}>
+      <div className="account-manager-shell">
+        <div className="account-manager-header">
+          <div>
+            <h2>Profiles</h2>
+            <p>Rust-native Roblox account manager for launch-time cookie selection.</p>
+          </div>
+          <div className="account-manager-header-actions">
+            {!embedded && (
+              <button className="btn-secondary" onClick={() => void commands.winClose()}>
+                <X size={14} />
+                Close
+              </button>
+            )}
+            <button className="btn-secondary" onClick={() => void refresh()} disabled={busy}>
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+            <button className="btn-primary" onClick={() => void importCurrent()} disabled={busy}>
+              <ShieldCheck size={15} />
+              Import Current Session
+            </button>
+          </div>
+        </div>
+
+        <div className="account-manager-grid">
+          <section className="account-manager-panel">
+            <div className="account-manager-panel-head">
+              <strong>Accounts</strong>
+              <span>{snapshot.accounts.length}</span>
+            </div>
+            <label className="exploit-picker-search account-manager-search">
+              <Search size={14} />
+              <input
+                type="text"
+                placeholder="Search accounts"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <div className="account-manager-list">
+              {visibleAccounts.map((account) => (
+                <button
+                  key={account.id}
+                  className={`account-manager-item${account.id === selectedId ? " selected" : ""}`}
+                  onClick={() => setSelectedId(account.id)}
+                >
+                  <div className="account-manager-item-icon">
+                    <User size={14} />
+                  </div>
+                  <div className="account-manager-item-main">
+                    <strong>{account.alias}</strong>
+                    <span>@{account.username}</span>
+                  </div>
+                  <div className="account-manager-item-state">
+                    {account.active ? (
+                      <span className="account-manager-tag active">
+                        <CheckCircle2 size={12} />
+                        Active
+                      </span>
+                    ) : (
+                      <span className="account-manager-tag idle">
+                        <Circle size={10} />
+                        Stored
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {visibleAccounts.length === 0 && (
+                <div className="account-manager-empty">No accounts match your search.</div>
+              )}
+            </div>
+          </section>
+
+          <section className="account-manager-panel details">
+            <div className="account-manager-panel-head">
+              <strong>{selectedAccount ? "Account Details" : "Add Account"}</strong>
+            </div>
+
+            {selectedAccount ? (
+              <div className="account-manager-details">
+                <div className="account-manager-kv">
+                  <span>Display Name</span>
+                  <strong>{selectedAccount.display_name}</strong>
+                </div>
+                <div className="account-manager-kv">
+                  <span>Username</span>
+                  <strong>@{selectedAccount.username}</strong>
+                </div>
+                <div className="account-manager-kv">
+                  <span>User ID</span>
+                  <strong>{selectedAccount.user_id}</strong>
+                </div>
+                <div className="account-manager-kv">
+                  <span>Updated</span>
+                  <strong>{formatTime(selectedAccount.updated_at_utc)}</strong>
+                </div>
+                <div className="account-manager-kv">
+                  <span>Created</span>
+                  <strong>{formatTime(selectedAccount.created_at_utc)}</strong>
+                </div>
+              </div>
+            ) : (
+              <div className="account-manager-empty details">Select an account to view details.</div>
+            )}
+
+            <div className="account-manager-form">
+              <label className="field-label">Alias</label>
+              <input
+                type="text"
+                value={aliasInput}
+                onChange={(event) => setAliasInput(event.target.value)}
+                placeholder="Main / Alt / Testing..."
+              />
+              <label className="field-label">ROBLOSECURITY Cookie</label>
+              <input
+                type="password"
+                value={cookieInput}
+                onChange={(event) => setCookieInput(event.target.value)}
+                placeholder="_|WARNING:-DO-NOT-SHARE-THIS..."
+              />
+            </div>
+
+            <div className="account-manager-actions">
+              <button className="btn-primary" onClick={() => void addByCookie()} disabled={busy}>
+                <Plus size={14} />
+                Add / Update Cookie
+              </button>
+              <button className="btn-secondary" onClick={() => void renameSelected()} disabled={busy || !selectedAccount}>
+                Rename
+              </button>
+              <button className="btn-secondary" onClick={() => void setActive()} disabled={busy || !selectedAccount}>
+                Set Active
+              </button>
+              <button className="btn-secondary" onClick={() => void clearActive()} disabled={busy || !snapshot.active_account_id}>
+                Clear Active
+              </button>
+              <button className="btn-secondary btn-danger" onClick={() => void removeSelected()} disabled={busy || !selectedAccount}>
+                <Trash2 size={14} />
+                Remove
+              </button>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div className="account-manager-footer">{status}</div>
     </div>
   );
 }
@@ -1156,7 +1546,7 @@ function InstallerView({ setView, settings, set }: InstallerViewProps) {
       setError("");
       const result = await commands.doFullInstall(desktop, startMenu, importOld);
       if (result?.relaunched) {
-        await commands.winClose();
+        await commands.appExit();
         return;
       }
       const runtime = await commands.ensureRuntimeReady();
@@ -2192,8 +2582,44 @@ function PageDeployment({ s, set }: SettingsProps) {
 }
 
 function PageMods({ s, set }: SettingsProps) {
-  const cursorTypes = [{ v: 0, l: "Default" }, { v: 1, l: "From 2006" }, { v: 2, l: "From 2013" }];
+  const cursorTypes = [
+    { v: 0, l: "Default" },
+    { v: 1, l: "From 2006" },
+    { v: 2, l: "From 2013" },
+    { v: 3, l: "Custom file" },
+  ];
   const emojiTypes = [{ v: 0, l: "Default (Twemoji)" }, { v: 1, l: "Noto Color Emoji" }, { v: 2, l: "Windows 11" }];
+  const extra = (s.extra || {}) as Record<string, unknown>;
+  const cursorType = Number(extra.CursorType ?? 0);
+  const customCursorPath = typeof extra.CustomCursorPath === "string" ? extra.CustomCursorPath : "";
+  const useCustomFont = Boolean(extra.UseCustomFont);
+  const customFontPath = typeof extra.CustomFontPath === "string" ? extra.CustomFontPath : "";
+  const [systemFonts, setSystemFonts] = useState<SystemFontEntry[]>([]);
+  const [fontsLoading, setFontsLoading] = useState(false);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [fontsError, setFontsError] = useState("");
+
+  useEffect(() => {
+    if (!useCustomFont || fontsLoaded || fontsLoading) {
+      return;
+    }
+
+    setFontsLoading(true);
+    setFontsError("");
+    void commands
+      .getSystemFonts()
+      .then((fonts) => {
+        setSystemFonts(Array.isArray(fonts) ? fonts : []);
+        setFontsLoaded(true);
+      })
+      .catch((error: unknown) => {
+        setFontsError(String(error));
+        setFontsLoaded(true);
+      })
+      .finally(() => {
+        setFontsLoading(false);
+      });
+  }, [useCustomFont, fontsLoaded, fontsLoading]);
 
   return (
     <div className="page">
@@ -2204,7 +2630,7 @@ function PageMods({ s, set }: SettingsProps) {
 
       <CardGroup>
         <div style={{ display: "flex", gap: 8, padding: 14 }}>
-          <button className="btn-secondary" style={{ flex: 1 }} onClick={() => void commands.openSettings()}>
+          <button className="btn-secondary" style={{ flex: 1 }} onClick={() => void commands.openModsFolder()}>
             Open Mods Folder
           </button>
         </div>
@@ -2212,10 +2638,29 @@ function PageMods({ s, set }: SettingsProps) {
 
       <Section title="Presets">
         <Opt header="Mouse cursor" desc="Choose classic Roblox cursor styles.">
-          <select value={(s.extra as Record<string, number>)?.CursorType ?? 0} onChange={e => set("extra" as keyof Settings, { ...(s.extra || {}), CursorType: Number(e.target.value) } as Settings["extra"])}>
+          <select value={cursorType} onChange={e => set("extra" as keyof Settings, { ...(s.extra || {}), CursorType: Number(e.target.value) } as Settings["extra"])}>
             {cursorTypes.map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
           </select>
         </Opt>
+        {cursorType === 3 && (
+          <Opt
+            header="Custom cursor path"
+            desc="PNG path applied to Roblox arrow cursors. Example: C:\\Mods\\cursor.png"
+          >
+            <input
+              type="text"
+              value={customCursorPath}
+              onChange={e =>
+                set(
+                  "extra" as keyof Settings,
+                  { ...(s.extra || {}), CustomCursorPath: e.target.value } as Settings["extra"]
+                )
+              }
+              placeholder="C:\\path\\to\\cursor.png"
+              style={{ width: 260 }}
+            />
+          </Opt>
+        )}
         <Opt header="Use old avatar editor background" desc="Bring back the pre-2020 avatar editor background.">
           <Toggle checked={(s.extra as Record<string, boolean>)?.OldAvatarBackground ?? false} onChange={v => set("extra" as keyof Settings, { ...(s.extra || {}), OldAvatarBackground: v } as Settings["extra"])} />
         </Opt>
@@ -2230,9 +2675,45 @@ function PageMods({ s, set }: SettingsProps) {
       </Section>
 
       <Section title="Miscellaneous">
-        <Opt header="Use custom font" desc="Font override will be added in a future update.">
-          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Coming soon</span>
+        <Opt header="Use custom font" desc="Apply a custom Roblox font override from a file/folder path.">
+          <Toggle
+            checked={useCustomFont}
+            onChange={v =>
+              set("extra" as keyof Settings, { ...(s.extra || {}), UseCustomFont: v } as Settings["extra"])
+            }
+          />
         </Opt>
+        {useCustomFont && (
+          <Opt
+            header="Installed system font"
+            desc="Select a font installed on Windows. Ruststrap will use the selected font file."
+          >
+            {fontsLoading ? (
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>Loading installed fonts...</span>
+            ) : (
+              <select
+                value={customFontPath}
+                onChange={e =>
+                  set(
+                    "extra" as keyof Settings,
+                    { ...(s.extra || {}), CustomFontPath: e.target.value } as Settings["extra"]
+                  )
+                }
+                style={{ minWidth: 300 }}
+              >
+                <option value="">Select font...</option>
+                {systemFonts.map((font) => (
+                  <option key={font.path} value={font.path}>
+                    {font.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {fontsError && (
+              <span style={{ fontSize: 12, color: "#fca5a5" }}>{fontsError}</span>
+            )}
+          </Opt>
+        )}
         <Opt header="Manage compatibility settings" desc="Configure DPI scaling behavior.">
           <Toggle checked={s.WPFSoftwareRender} onChange={v => set("WPFSoftwareRender", v)} />
         </Opt>

@@ -199,6 +199,14 @@ fn fetch_authenticated_user_for_cookie(cookie: &str) -> Result<Option<Authentica
         Ok(Some(user))
 }
 
+pub fn authenticated_user_from_cookie(raw_cookie: &str) -> Result<Option<AuthenticatedUser>> {
+    let cookie = normalize_roblosecurity_cookie(raw_cookie);
+    if cookie.is_empty() {
+        return Ok(None);
+    }
+    fetch_authenticated_user_for_cookie(&cookie)
+}
+
 impl CookiesManager {
     /// make an authenticated GET request to a Roblox API endpoint.
     pub fn auth_get(&self, url: &str) -> Result<(u16, String)> {
@@ -311,6 +319,18 @@ pub fn persist_roblosecurity_cookie(raw: &str) -> Result<()> {
         .map_err(|e| DomainError::Serialization(format!("cookies serialize failed: {e}")))?;
     fs::write(cookie_path, json)?;
     Ok(())
+}
+
+pub fn encrypt_secret_for_current_user(raw: &str) -> Result<String> {
+    let encrypted_data = dpapi_protect(raw.as_bytes())?;
+    Ok(base64_encode(&encrypted_data))
+}
+
+pub fn decrypt_secret_for_current_user(payload: &str) -> Result<String> {
+    let decoded_data = base64_decode(payload)?;
+    let decrypted_data = dpapi_unprotect(&decoded_data)?;
+    String::from_utf8(decrypted_data)
+        .map_err(|error| DomainError::Serialization(format!("secret decode failed: {error}")))
 }
 
 fn classify_cookie_load_error(error: &DomainError) -> CookieState {
