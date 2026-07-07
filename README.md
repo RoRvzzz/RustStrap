@@ -16,12 +16,14 @@ https://rorvzzz.cool
 ![Stars][badge-repo-stars]
 </div>
 
+> [!CAUTION]
+> Ruststrap will likely not be getting any more updates, this is because of my new project [RoRvzzz Account manager](https://github.com/RoRvzzz/RoRvzzz-Account-Manager)
+> Current the RAM project is in a spot where I am trying to obtain a rich feature set without making it a full bootstrapper.
+> I will try to keep RAM as minimal as possible while I work on real production ready bootstrapper.
+
+
 > [!NOTE]
 > Please star the repo if you enjoy it!
-
-> [!CAUTION]
-> The only official place to download Ruststrap is this GitHub repository.
-> Do not download binaries from mirrors, reupload sites, or unofficial domains.
 
 > [!WARNING]
 > Ruststrap is still in very early beta and is very buggy
