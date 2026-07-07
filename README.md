@@ -18,7 +18,7 @@ https://rorvzzz.cool
 
 > [!CAUTION]
 > Ruststrap will likely not be getting any more updates, this is because of my new project [RoRvzzz Account manager](https://github.com/RoRvzzz/RoRvzzz-Account-Manager)
-> Current the RAM project is in a spot where I am trying to obtain a rich feature set without making it a full bootstrapper.
+> Currently the RAM project is in a spot where I am trying to obtain a rich feature set without making it a full bootstrapper.
 > I will try to keep RAM as minimal as possible while I work on real production ready bootstrapper.
 
 
